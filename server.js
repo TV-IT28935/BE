@@ -8,6 +8,7 @@ import cors from "cors";
 import userRouter from "./src/routes/userRoute.js";
 import authRouter from "./src/routes/authRoute.js";
 import categoryRouter from "./src/routes/categoryRoute.js";
+import positionRouter from "./src/routes/positionRoute.js";
 
 dotenv.config();
 
@@ -26,9 +27,10 @@ app.use(
   })
 );
 
-app.use("/v1/api/", authRouter);
+app.use("/v1/api/auth", authRouter);
 app.use("/v1/api/user", userRouter);
-app.use("/v1/api/category", categoryRouter); // Gán route danh mục
+app.use("/v1/api/category", categoryRouter);
+app.use("/v1/api/position", positionRouter);
 
 const startServer = async () => {
   try {

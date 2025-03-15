@@ -1,12 +1,10 @@
 import mongoose from "mongoose";
 
-const roleSchema = new mongoose.Schema(
+const positionSchema = new mongoose.Schema(
   {
     name: {
       type: String,
       required: true,
-      unique: true,
-      minLength: 1,
       maxLength: 20,
     },
     description: {
@@ -26,6 +24,6 @@ const roleSchema = new mongoose.Schema(
   }
 );
 
-const Role = mongoose.model("role", roleSchema);
+const Position = mongoose.model("position", positionSchema);
 
-export default Role;
+export default Position;

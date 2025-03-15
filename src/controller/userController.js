@@ -1,23 +1,68 @@
-import { validationResult } from "express-validator";
+import { generateToken } from "../config/jwtToken.js";
+import transporter from "../config/nodeMailer.js";
+import Position from "../model/position.js";
+import Role from "../model/role.js";
 import User from "../model/user.js";
 import {
-  successResponse,
-  errorResponse500,
   errorResponse400,
+  errorResponse500,
+  successResponse,
 } from "../utils/responseHandler.js";
+import validateMongoDbId from "../utils/validateMongodbId.js";
+import bcrypt from "bcrypt";
 
 const createUser = async (req, res) => {
   try {
-    const { email } = req.body;
-    const findUser = await User.findOne({ email: email });
-    if (!findUser) {
-      const newUser = await User.create(req.body);
-      return res.json(newUser);
-    } else {
+    const { email, password } = req.body;
+    const existingUser = await User.findOne({ email: email });
+    if (existingUser) {
       return errorResponse400(res, "Email người dùng đã tồn tại");
     }
+    const defaultRole = await Role.findOne({ name: "USER" });
+    if (!defaultRole) {
+      return errorResponse400(res, "Không tìm thấy vai trò mặc định!");
+    }
+
+    const defaultPosition = await Position.findOne({ name: "EMPLOYEE" });
+    if (!defaultPosition) {
+      return errorResponse500(res, "Không tìm thấy vị trí mặc định!");
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    const user = new User({
+      roleId: defaultRole._id,
+      positionId: defaultPosition._id,
+      ...req.body,
+      password: hashedPassword,
+    });
+    defaultRole.isUsed = true;
+    defaultPosition.isUsed = true;
+
+    await defaultRole.save();
+    await defaultPosition.save();
+    await user.save();
+
+    const access_token = generateToken(user._id);
+
+    res.cookie("access_token", access_token, {
+      httpOnly: true,
+      secure: false,
+      maxAge: 24 * 60 * 60 * 1000,
+    });
+
+    const mailOptions = {
+      from: process.env.MAIL_USERNAME,
+      to: email,
+      subject: "Chào mừng tới với mạng xã hội FUNNY",
+      text: `Chào mừng tới với mạng xã hội FUNNY. Email vừa được tạo mới là :${email}`,
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    return successResponse(res, "Tạo người dùng thành công!");
   } catch (error) {
-    console.log(error.message);
+    return errorResponse500(res, error.message);
   }
 };
 
@@ -53,4 +98,37 @@ const getUserById = async (req, res) => {
   }
 };
 
-export { createUser, getAllUser, getUserById };
+const deleteUserById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    validateMongoDbId(id);
+    const deleteUserById = await User.findByIdAndDelete(id);
+    if (deleteUserById) {
+      return successResponse(res, "Thành công!");
+    } else {
+      return errorResponse400(res, "Người dùng không tồn tại!");
+    }
+  } catch (error) {
+    return errorResponse500(res, error.message);
+  }
+};
+
+const updateUserById = async (req, res) => {
+  try {
+    const { _id } = req.user;
+    validateMongoDbId(_id);
+    const updateUserById = await User.findByIdAndUpdate(_id, req.body, {
+      new: true,
+    });
+    if (updateUserById) {
+      await updateUserById.save();
+      return successResponse(res, "Thành công!");
+    } else {
+      return errorResponse400(res, "Người dùng không tồn tại!");
+    }
+  } catch (error) {
+    return errorResponse500(res, error.message);
+  }
+};
+
+export { createUser, getAllUser, getUserById, deleteUserById, updateUserById };

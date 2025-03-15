@@ -1,15 +1,15 @@
 import mongoose from "mongoose";
 
-const userGroupSchema = new mongoose.Schema(
+const userRoleSchema = new mongoose.Schema(
   {
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "user",
       required: true,
     },
-    groupId: {
+    roleId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "group",
+      ref: "role",
       required: true,
     },
     deletedAt: { type: Date },
@@ -19,6 +19,6 @@ const userGroupSchema = new mongoose.Schema(
   }
 );
 
-const User_Group = mongoose.model("user_group", userGroupSchema);
+const User_Role = mongoose.model("user_role", userRoleSchema);
 
-export default User_Group;
+export default User_Role;

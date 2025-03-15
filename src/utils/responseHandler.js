@@ -30,7 +30,7 @@ const errorResponse500 = (res, message, errors = [], statusCode = 500) => {
   });
 };
 
-const authorizationResponse = (res, message, data = null, statusCode = 401) => {
+const authorizationResponse = (res, message, data = null, statusCode = 403) => {
   return res.status(statusCode).json({
     status: statusCode,
     message,

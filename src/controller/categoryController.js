@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Category from "../model/category.js";
 import { errorResponse500, successResponse } from "../utils/responseHandler.js";
+import validateMongoDbId from "../utils/validateMongodbId.js";
 
 // 1️⃣ Get All Categories
 export const getAllCategories = async (req, res) => {
@@ -67,7 +68,7 @@ export const deleteCategory = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (validateMongoDbId(id)) {
       return successResponse(res, "Không tìm thấy danh mục");
     }
 

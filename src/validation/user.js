@@ -2,6 +2,7 @@ import Joi from "joi";
 import mongoose from "mongoose";
 
 const userSchemaJoi = Joi.object({
+  id: Joi.string().optional(),
   email: Joi.string().email().min(5).max(50).required().messages({
     "string.email": "Email không hợp lệ.",
     "string.min": "Email phải có ít nhất 5 ký tự.",
@@ -33,7 +34,6 @@ const userSchemaJoi = Joi.object({
       "any.required": "Số điện thoại là bắt buộc.",
     }),
   roleId: Joi.string()
-    .required()
     .custom((value, helpers) => {
       if (!mongoose.Types.ObjectId.isValid(value)) {
         return helpers.message("roleId không hợp lệ.");
@@ -43,6 +43,17 @@ const userSchemaJoi = Joi.object({
     .messages({
       "any.required": "roleId là bắt buộc.",
       "string.base": "roleId phải là một chuỗi ObjectId hợp lệ.",
+    }),
+  positionId: Joi.string()
+    .custom((value, helpers) => {
+      if (!mongoose.Types.ObjectId.isValid(value)) {
+        return helpers.message("positionId không hợp lệ.");
+      }
+      return value;
+    })
+    .messages({
+      "any.required": "positionId là bắt buộc.",
+      "string.base": "positionId phải là một chuỗi ObjectId hợp lệ.",
     }),
 
   status: Joi.string()
