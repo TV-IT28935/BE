@@ -2,12 +2,14 @@ import mongoose from "mongoose";
 
 const categorySchema = new mongoose.Schema(
   {
-    title: { type: String, required: true, maxLength: 50 },
+    name: { type: String, required: true, maxLength: 50 },
     description: { type: String },
-    icon: { type: String, maxLength: 255 },
-    deletedAt: { type: Date },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
   },
-  { timestamps: true } // Tự động tạo createdAt và updatedAt
+  { timestamps: true }
 );
 
 const Category = mongoose.model("category", categorySchema);

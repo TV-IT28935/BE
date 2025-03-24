@@ -2,6 +2,7 @@ import { generateToken } from "../config/jwtToken.js";
 import { generateRefreshToken } from "../config/refreshToken.js";
 import User from "../model/user.js";
 import bcrypt from "bcrypt";
+import generator from "generate-password";
 import {
   errorResponse400,
   errorResponse500,
@@ -162,11 +163,50 @@ const logout = async (req, res) => {
   }
 };
 
-const forgotPasswordToken = async (req, res) => {};
+const forgotPassword = async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return errorResponse400(res, "Bạn nhập thiếu dữ liệu!");
+  }
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return errorResponse400(res, "Email không tồn tại");
+    }
+
+    const passwordNew = generator.generate({
+      length: 12,
+      numbers: true,
+      uppercase: true,
+      lowercase: true,
+      excludeSimilarCharacters: true,
+    });
+
+    const mailOptions = {
+      from: process.env.MAIL_USERNAME,
+      to: user.email,
+      subject: "Mật khẩu mới",
+      text: `Mật khẩu mới của bạn là: ${passwordNew}`,
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    const hashedPassword = await bcrypt.hash(passwordNew, 12);
+
+    user.password = hashedPassword;
+
+    await user.save();
+
+    return successResponse(res, "Mật khẩu được gửi về email của bạn!");
+  } catch (error) {
+    return errorResponse500(res, error.message);
+  }
+};
 
 const resetPassword = async (req, res) => {
-  const { email, passwordNew, otp } = req.body;
-  if (!email || !passwordNew || !otp) {
+  const { email, password, otp } = req.body;
+  if (!email || !password || !otp) {
     return errorResponse400(res, "Bạn nhập thiếu dữ liệu!");
   }
   try {
@@ -174,13 +214,29 @@ const resetPassword = async (req, res) => {
     if (!user) {
       return errorResponse400(res, "Email không tồn tại");
     }
+    if (user.resetOtp === "" || user.resetOtp !== otp) {
+      return errorResponse400(res, "Mã OTP không đúng!");
+    }
+    if (user.resetOtpExpireAt < Date.now()) {
+      return errorResponse400(res, "Mã OTP hết hạn!");
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    user.password = hashedPassword;
+    user.resetOtp = 0;
+    user.resetOtpExpireAt = 0;
+
+    await user.save();
+
+    return successResponse(res, "Đổi mật khẩu thành công!");
   } catch (error) {
     return errorResponse500(res, error.message);
   }
 };
 
 const changePassword = async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, passwordNew } = req.body;
   try {
     const user = await User.findOne({ email });
     if (!user) {
@@ -192,13 +248,45 @@ const changePassword = async (req, res) => {
       return errorResponse400(res, "Mật khẩu không đúng!");
     }
 
-    const hashedPassword = await bcrypt.hash(password, 12);
+    const hashedPassword = await bcrypt.hash(passwordNew, 12);
 
     user.password = hashedPassword;
 
     await user.save();
 
     return successResponse(res, "Đổi mật khẩu thành công!");
+  } catch (error) {
+    return errorResponse500(res, error.message);
+  }
+};
+
+const sendOtpResetPassword = async (req, res) => {
+  const { email } = req.body;
+  try {
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return errorResponse500(res, "User không tồn tại!");
+    }
+
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    const otpExpire = Date.now() + 10 * 60 * 1000;
+
+    user.resetOtp = otp;
+    user.resetOtpExpireAt = otpExpire;
+
+    await user.save();
+
+    const mailOptions = {
+      from: process.env.MAIL_USERNAME,
+      to: user.email,
+      subject: "Reset mật khẩu",
+      text: `Mã OTP của bạn là: ${otp}`,
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    return successResponse(res, "Gửi mã OTP đến bạn thành công!");
   } catch (error) {
     return errorResponse500(res, error.message);
   }
@@ -223,45 +311,14 @@ const handleRefreshToken = async (req, res) => {
   }
 };
 
-// const sendOtpResetPassword= async (req, res) => {
-//   const {email} = req.body
-//   try {
-//     const user = await User.findOne({email});
-
-//     if (!user) {
-//       return errorResponse500(res, "User không tồn tại!");
-//     }
-
-//     const otp = String(Math.floor(100000 + Math.random() * 900000));
-//     const otpExpire = Date.now() + 10 * 60 * 1000;
-
-//     user.resetOtp = otp;
-//     user.resetOtpExpireAt = otpExpire;
-
-//     await user.save();
-
-//     const mailOptions = {
-//       from: process.env.MAIL_USERNAME,
-//       to: user.email,
-//       subject: "Xác thực mã OTP thay đổi mật khẩu",
-//       text: `Mã OTP của bạn là: ${otp}`,
-//     };
-
-//     await transporter.sendMail(mailOptions);
-
-//     return successResponse(res, "Gửi mã OTP đến bạn thành công!");
-//   } catch (error) {
-//     return errorResponse500(res, error.message);
-//   }
-// };
-
 export {
   loginUser,
   logout,
-  forgotPasswordToken,
+  forgotPassword,
   resetPassword,
   handleRefreshToken,
   changePassword,
   sendOtp,
+  sendOtpResetPassword,
   // verifyOtp,
 };

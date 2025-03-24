@@ -1,6 +1,5 @@
 import { generateToken } from "../config/jwtToken.js";
 import transporter from "../config/nodeMailer.js";
-import Position from "../model/position.js";
 import Role from "../model/role.js";
 import User from "../model/user.js";
 import {
@@ -23,24 +22,16 @@ const createUser = async (req, res) => {
       return errorResponse400(res, "Không tìm thấy vai trò mặc định!");
     }
 
-    const defaultPosition = await Position.findOne({ name: "EMPLOYEE" });
-    if (!defaultPosition) {
-      return errorResponse500(res, "Không tìm thấy vị trí mặc định!");
-    }
-
     const hashedPassword = await bcrypt.hash(password, 12);
 
     const user = new User({
       roleId: defaultRole._id,
-      positionId: defaultPosition._id,
       ...req.body,
       password: hashedPassword,
     });
     defaultRole.isUsed = true;
-    defaultPosition.isUsed = true;
 
     await defaultRole.save();
-    await defaultPosition.save();
     await user.save();
 
     const access_token = generateToken(user._id);
