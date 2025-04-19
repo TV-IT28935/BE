@@ -4,9 +4,7 @@ import validateMongoDbId from "../utils/validateMongodbId.js";
 
 export const getAllCategories = async (req, res) => {
   try {
-    const categories = await Category.find({ deletedAt: null }).sort({
-      createdAt: -1,
-    });
+    const categories = await Category.find({});
     return successResponse(
       res,
       "Lấy danh sách danh mục thành công!",
@@ -20,6 +18,7 @@ export const getAllCategories = async (req, res) => {
 export const getCategoryById = async (req, res) => {
   try {
     const { id } = req.params;
+    validateMongoDbId(id);
     const category = await Category.findById(id);
 
     if (!category || category.deletedAt) {
@@ -28,6 +27,9 @@ export const getCategoryById = async (req, res) => {
 
     return successResponse(res, "Lấy danh mục thành công!", category);
   } catch (error) {
+    if (error instanceof ErrorCustom) {
+      return errorResponse400(res, error.message);
+    }
     return errorResponse500(res, "Lỗi server", error.message);
   }
 };
@@ -44,6 +46,7 @@ export const createCategory = async (req, res) => {
 export const updateCategory = async (req, res) => {
   try {
     const { id } = req.params;
+    validateMongoDbId(id);
     const updatedCategory = await Category.findByIdAndUpdate(id, req.body, {
       new: true,
     });
@@ -54,6 +57,9 @@ export const updateCategory = async (req, res) => {
 
     return res.json({ success: true, data: updatedCategory });
   } catch (error) {
+    if (error instanceof ErrorCustom) {
+      return errorResponse400(res, error.message);
+    }
     return errorResponse500(res, "Lỗi server", error.message);
   }
 };
@@ -61,11 +67,7 @@ export const updateCategory = async (req, res) => {
 export const deleteCategory = async (req, res) => {
   try {
     const { id } = req.params;
-
-    if (validateMongoDbId(id)) {
-      return successResponse(res, "Không tìm thấy danh mục");
-    }
-
+    validateMongoDbId(id);
     const category = await Category.findById(id);
     if (!category || category.deletedAt) {
       return successResponse(res, "Không tìm thấy danh mục");
@@ -76,6 +78,9 @@ export const deleteCategory = async (req, res) => {
 
     return res.json({ success: true, message: "Danh mục đã được xóa mềm" });
   } catch (error) {
+    if (error instanceof ErrorCustom) {
+      return errorResponse400(res, error.message);
+    }
     return errorResponse500(res, "Lỗi server", error.message);
   }
 };

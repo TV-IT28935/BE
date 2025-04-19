@@ -33,24 +33,6 @@ const userSchema = new mongoose.Schema(
       minLength: 10,
       maxLength: 10,
     },
-    roleId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "role",
-    },
-    positionId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "position",
-    },
-    status: {
-      type: String,
-      enum: ["active", "inactive", "banned"],
-      default: "active",
-    },
-    isOnline: {
-      type: Boolean,
-      default: false,
-    },
-
     introduce: {
       type: String,
       default: "",

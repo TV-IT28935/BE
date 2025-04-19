@@ -33,28 +33,6 @@ const userSchemaJoi = Joi.object({
       "string.pattern.base": "Số điện thoại phải có đúng 10 chữ số.",
       "any.required": "Số điện thoại là bắt buộc.",
     }),
-  roleId: Joi.string()
-    .custom((value, helpers) => {
-      if (!mongoose.Types.ObjectId.isValid(value)) {
-        return helpers.message("roleId không hợp lệ.");
-      }
-      return value;
-    })
-    .messages({
-      "any.required": "roleId là bắt buộc.",
-      "string.base": "roleId phải là một chuỗi ObjectId hợp lệ.",
-    }),
-  positionId: Joi.string()
-    .custom((value, helpers) => {
-      if (!mongoose.Types.ObjectId.isValid(value)) {
-        return helpers.message("positionId không hợp lệ.");
-      }
-      return value;
-    })
-    .messages({
-      "any.required": "positionId là bắt buộc.",
-      "string.base": "positionId phải là một chuỗi ObjectId hợp lệ.",
-    }),
 
   status: Joi.string()
     .valid("active", "inactive", "banned")

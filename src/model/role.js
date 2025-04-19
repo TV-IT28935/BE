@@ -20,6 +20,9 @@ const roleSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    userIds: [
+      { type: mongoose.Schema.Types.ObjectId, ref: "user" },
+    ],
   },
   {
     timestamps: true,

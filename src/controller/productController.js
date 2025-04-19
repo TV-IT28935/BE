@@ -1,81 +1,168 @@
-import Category from "../model/category.js";
-import { errorResponse500, successResponse } from "../utils/responseHandler.js";
+import aqp from "api-query-params";
+import mongoose from "mongoose";
+import { ErrorCustom } from "../helper/ErrorCustom.js";
+import Product from "../model/product.js";
+import Product_Category from "../model/product_category.js";
+import { paginateModel } from "../utils/paginateModel.js";
+import {
+  errorResponse400,
+  errorResponse500,
+  notFoundResponse,
+  successResponse,
+  successResponseList,
+} from "../utils/responseHandler.js";
 import validateMongoDbId from "../utils/validateMongodbId.js";
 
-export const getAllCategories = async (req, res) => {
+export const getAllProduct = async (req, res) => {
   try {
-    const categories = await Category.find({ deletedAt: null }).sort({
-      createdAt: -1,
+    const { filter } = aqp(req.query);
+    const { page, size, ...filterQuery } = filter;
+    console.log(page, size, filterQuery);
+
+    const { data: products, pagination } = await paginateModel({
+      model: Product,
+      page,
+      size,
+      filter: filterQuery,
     });
-    return successResponse(
+
+    return successResponseList(
       res,
-      "Lấy danh sách danh mục thành công!",
-      categories
+      "Lấy danh sách sản phẩm thành công!",
+      products,
+      pagination
     );
   } catch (error) {
     return errorResponse500(res, "Lỗi server", error.message);
   }
 };
 
-export const getCategoryById = async (req, res) => {
+export const getProductById = async (req, res) => {
   try {
     const { id } = req.params;
-    const category = await Category.findById(id);
+    validateMongoDbId(id);
+    const product = await Product.aggregate([
+      {
+        $match: {
+          _id: new mongoose.Types.ObjectId(id), // Tìm sản phẩm theo _id
+        },
+      },
+      {
+        $lookup: {
+          from: "product_categories",
+          localField: "_id",
+          foreignField: "product",
+          as: "product_categories",
+        },
+      },
+      {
+        $lookup: {
+          from: "categories",
+          localField: "product_categories.category",
+          foreignField: "_id",
+          as: "categories",
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          code: 1,
+          name: 1,
+          description: 1,
+          isActive: 1,
+          brand: 1,
+          sale: 1,
+          view: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          categories: {
+            _id: 1,
+            title: 1,
+          },
+        },
+      },
+    ]);
 
-    if (!category || category.deletedAt) {
-      return successResponse(res, "Không tìm thấy danh mục");
+    if (!product || product.deletedAt) {
+      return successResponse(res, "Không tìm thấy sản phẩm");
     }
 
-    return successResponse(res, "Lấy danh mục thành công!", category);
+    return successResponse(res, "Lấy sản phẩm thành công!", product[0]);
   } catch (error) {
+    if (error instanceof ErrorCustom) {
+      return errorResponse400(res, error.message);
+    }
     return errorResponse500(res, "Lỗi server", error.message);
   }
 };
 
-export const createCategory = async (req, res) => {
+export const createProduct = async (req, res) => {
   try {
-    const newCategory = await Category.create(req.body);
-    return res.status(201).json({ success: true, data: newCategory });
+    const { categoryIds, ...productData } = req.body;
+
+    const newProduct = await Product.create(productData);
+
+    if (categoryIds && categoryIds.length > 0) {
+      const relations = categoryIds.map((categoryId) => ({
+        category: categoryId,
+        product: newProduct._id,
+      }));
+
+      await Product_Category.insertMany(relations);
+    }
+
+    return successResponse(res, "Tạo sản phẩm thành công!", newProduct);
   } catch (error) {
     return errorResponse500(res, "Lỗi server", error.message);
   }
 };
 
-export const updateCategory = async (req, res) => {
+export const updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
-    const updatedCategory = await Category.findByIdAndUpdate(id, req.body, {
+    validateMongoDbId(id);
+    const updatedCategory = await Product.findByIdAndUpdate(id, req.body, {
       new: true,
     });
 
     if (!updatedCategory) {
-      return successResponse(res, "Không tìm thấy danh mục");
+      return notFoundResponse(res, "Không tìm thấy sản phẩm");
     }
 
-    return res.json({ success: true, data: updatedCategory });
+    return successResponse(
+      res,
+      "Cập nhật sản phẩm thành công!",
+      updatedCategory
+    );
   } catch (error) {
+    if (error instanceof ErrorCustom) {
+      return errorResponse400(res, error.message);
+    }
     return errorResponse500(res, "Lỗi server", error.message);
   }
 };
 
-export const deleteCategory = async (req, res) => {
+export const deleteProduct = async (req, res) => {
   try {
     const { id } = req.params;
 
     if (validateMongoDbId(id)) {
-      return successResponse(res, "Không tìm thấy danh mục");
+      return successResponse(res, "Không tìm thấy sản phẩm");
     }
 
-    const category = await Category.findById(id);
+    const category = await Product.findById(id);
     if (!category || category.deletedAt) {
-      return successResponse(res, "Không tìm thấy danh mục");
+      return successResponse(res, "Không tìm thấy sản phẩm");
     }
 
     category.deletedAt = new Date();
     await category.save();
 
-    return res.json({ success: true, message: "Danh mục đã được xóa mềm" });
+    return res.json({ success: true, message: "sản phẩm đã được xóa mềm" });
   } catch (error) {
+    if (error instanceof ErrorCustom) {
+      return errorResponse400(res, error.message);
+    }
     return errorResponse500(res, "Lỗi server", error.message);
   }
 };

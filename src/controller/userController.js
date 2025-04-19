@@ -73,6 +73,7 @@ const getAllUser = async (req, res) => {
 const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
+    validateMongoDbId(id);
     const user = await User.findById(id);
 
     if (!user) {
@@ -81,11 +82,10 @@ const getUserById = async (req, res) => {
 
     return successResponse(res, "Lấy thông tin người dùng thành công", user);
   } catch (error) {
-    return errorResponse500(
-      res,
-      "Lỗi khi lấy thông tin người dùng",
-      error.message
-    );
+    if (error instanceof ErrorCustom) {
+      return errorResponse400(res, error.message);
+    }
+    return errorResponse500(res, "Lỗi server", error.message);
   }
 };
 
@@ -100,7 +100,10 @@ const deleteUserById = async (req, res) => {
       return errorResponse400(res, "Người dùng không tồn tại!");
     }
   } catch (error) {
-    return errorResponse500(res, error.message);
+    if (error instanceof ErrorCustom) {
+      return errorResponse400(res, error.message);
+    }
+    return errorResponse500(res, "Lỗi server", error.message);
   }
 };
 
@@ -118,7 +121,10 @@ const updateUserById = async (req, res) => {
       return errorResponse400(res, "Người dùng không tồn tại!");
     }
   } catch (error) {
-    return errorResponse500(res, error.message);
+    if (error instanceof ErrorCustom) {
+      return errorResponse400(res, error.message);
+    }
+    return errorResponse500(res, "Lỗi server", error.message);
   }
 };
 

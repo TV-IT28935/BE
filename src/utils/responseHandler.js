@@ -6,6 +6,20 @@ const successResponse = (res, message, data = null, statusCode = 200) => {
   });
 };
 
+const successResponseList = (
+  res,
+  message,
+  data = null,
+  pagination
+) => {
+  return res.status(200).json({
+    status: 200,
+    message,
+    data,
+    pagination,
+  });
+};
+
 const notFoundResponse = (res, message, data = null, statusCode = 204) => {
   return res.status(statusCode).json({
     status: statusCode,
@@ -58,4 +72,5 @@ export {
   errorResponse500,
   authorizationResponse,
   authenticationResponse,
+  successResponseList,
 };
