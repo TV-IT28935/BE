@@ -11,7 +11,8 @@ import { productSchemaJoi } from "../validation/product.js";
 
 const router = express.Router();
 
-router.get("/", getAllProduct);
+router.get("/get-all", getAllProduct);
+router.get("/get-all/filter", getAllProduct);
 router.get("/:id", getProductById);
 router.post("/", validate(productSchemaJoi), createProduct);
 router.put("/", validate(productSchemaJoi), updateProduct);

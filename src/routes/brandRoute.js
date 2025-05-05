@@ -11,7 +11,7 @@ import categorySchemaJoi from "../validation/category.js";
 
 const router = express.Router();
 
-router.get("/", getAllBrand);
+router.get("/list", getAllBrand);
 router.get("/:id", getBrandById);
 router.post("/", validate(categorySchemaJoi), createBrand);
 router.put("/:id", validate(categorySchemaJoi), updateBrand);

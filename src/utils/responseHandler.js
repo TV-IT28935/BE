@@ -1,76 +1,71 @@
 const successResponse = (res, message, data = null, statusCode = 200) => {
-  return res.status(statusCode).json({
-    status: statusCode,
-    message,
-    data,
-  });
+    return res.status(statusCode).json({
+        status: statusCode,
+        message,
+        data,
+    });
 };
 
-const successResponseList = (
-  res,
-  message,
-  data = null,
-  pagination
-) => {
-  return res.status(200).json({
-    status: 200,
-    message,
-    data,
-    pagination,
-  });
+const successResponseList = (res, message, content = null, pagination) => {
+    return res.status(200).json({
+        status: 200,
+        message,
+        content,
+        ...pagination,
+    });
 };
 
 const notFoundResponse = (res, message, data = null, statusCode = 204) => {
-  return res.status(statusCode).json({
-    status: statusCode,
-    message,
-    data,
-  });
+    return res.status(statusCode).json({
+        status: statusCode,
+        message,
+        data,
+    });
 };
 
 const errorResponse400 = (res, message, errors = [], statusCode = 400) => {
-  return res.status(statusCode).json({
-    status: statusCode,
-    message,
-    errors,
-  });
+    return res.status(statusCode).json({
+        status: statusCode,
+        message,
+        errors,
+    });
 };
 
 const errorResponse500 = (res, message, errors = [], statusCode = 500) => {
-  return res.status(statusCode).json({
-    status: statusCode,
-    message,
-    errors,
-  });
+    return res.status(statusCode).json({
+        status: statusCode,
+        message,
+        errors,
+    });
 };
 
 const authorizationResponse = (res, message, data = null, statusCode = 403) => {
-  return res.status(statusCode).json({
-    status: statusCode,
-    message,
-    data,
-  });
+    return res.status(statusCode).json({
+        status: statusCode,
+        message,
+        data,
+    });
 };
 
 const authenticationResponse = (
-  res,
-  message,
-  data = null,
-  statusCode = 401
-) => {
-  return res.status(statusCode).json({
-    status: statusCode,
+    res,
     message,
-    data,
-  });
+    data = null,
+    statusCode = 401
+) => {
+    return res.status(statusCode).json({
+        status: statusCode,
+        message,
+        data,
+    });
 };
 
 export {
-  notFoundResponse,
-  successResponse,
-  errorResponse400,
-  errorResponse500,
-  authorizationResponse,
-  authenticationResponse,
-  successResponseList,
+    notFoundResponse,
+    successResponse,
+    errorResponse400,
+    errorResponse500,
+    authorizationResponse,
+    authenticationResponse,
+    successResponseList,
 };

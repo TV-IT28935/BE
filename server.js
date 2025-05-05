@@ -24,31 +24,31 @@ app.use(cookieParser());
 app.use(morgan("dev"));
 
 app.use(
-  cors({
-    credentials: true,
-  })
+    cors({
+        credentials: true,
+    })
 );
 
-app.use("/v1/api/auth", authRouter);
-app.use("/v1/api/user", userRouter);
-app.use("/v1/api/category", categoryRouter);
-app.use("/v1/api/product", productRouter);
-app.use("/v1/api/sale", saleRouter);
-app.use("/v1/api/voucher", voucherRouter);
-app.use("/v1/api/brand", brandRouter);
+app.use("/api/v1/auth", authRouter);
+app.use("/api/v1/user", userRouter);
+app.use("/api/v1/category", categoryRouter);
+app.use("/api/v1/product", productRouter);
+app.use("/api/v1/sale", saleRouter);
+app.use("/api/v1/voucher", voucherRouter);
+app.use("/api/v1/brand", brandRouter);
 
 // app.use("/v1/api/position", positionRouter);
 
 const startServer = async () => {
-  try {
-    await dbConnect();
-    app.listen(PORT, () => {
-      console.log(`🚀 Server is running at http://localhost:${PORT}`);
-    });
-  } catch (error) {
-    console.error("❌ Database connection failed:", error.message);
-    process.exit(1);
-  }
+    try {
+        await dbConnect();
+        app.listen(PORT, () => {
+            console.log(`🚀 Server is running at http://localhost:${PORT}`);
+        });
+    } catch (error) {
+        console.error("❌ Database connection failed:", error.message);
+        process.exit(1);
+    }
 };
 
 startServer();
