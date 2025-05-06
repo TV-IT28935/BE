@@ -24,20 +24,19 @@ import userAuth from "../middleware/userAuth.js";
 
 const router = express.Router();
 
-router.post("/register", validate(userSchemaJoi), createUser);
-
+router.post("/create", validate(userSchemaJoi), createUser);
 router.get("/", authMiddleware, getAllUser);
 
 router.get("/:id", authMiddleware, getUserById);
 router.delete("/:id", authMiddleware, deleteUserById);
-router.put("/", authMiddleware, validate(userSchemaJoi), updateUserById);
+router.put("/update-profile", authMiddleware, validate(userSchemaJoi), updateUserById);
 
 router.post("/login", loginUser);
 router.post("/logout", userAuth, logout);
 router.post("/forgot-password", forgotPassword);
 router.put("/reset-password", resetPassword);
 router.post("/refresh-token", handleRefreshToken);
-router.put("/password", changePassword);
+router.put("/change-password", changePassword);
 router.post("/send-otp", sendOtp);
 router.post("/send-otp-reset", sendOtpResetPassword);
 router.get("/detail", authMiddleware, getUserDetail);

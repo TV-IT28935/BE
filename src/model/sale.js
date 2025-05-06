@@ -1,21 +1,28 @@
 import mongoose from "mongoose";
 
 const salesSchema = new mongoose.Schema(
-  {
-    discount: {
-      type: Number,
+    {
+        name: {
+            type: String,
+            require: true,
+        },
+
+        discount: {
+            type: Number,
+            require: true,
+        },
+        isActive: {
+            type: Boolean,
+            default: true,
+            require: true,
+        },
+        description: {
+            type: String,
+        },
     },
-    isActive: {
-      type: Boolean,
-      default: true,
-    },
-    description: {
-      type: String,
-    },
-  },
-  {
-    timestamps: true,
-  }
+    {
+        timestamps: true,
+    }
 );
 const Sale = mongoose.model("sale", salesSchema);
 export default Sale;

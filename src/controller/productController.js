@@ -205,3 +205,14 @@ export const deleteProduct = async (req, res) => {
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
+
+export const getAllProductByBrand = async () => {};
+export const countProduct = async () => {};
+export const searchByKeyword = async () => {};
+export const getListHot = async () => {};
+export const getRecommendationById = async () => {};
+export const relateProduct = async () => {};
+export const toggleLikeProduct = async () => {};
+export const getAllProductWishList = async () => {};
+
+export const filterProducts = async () => {};

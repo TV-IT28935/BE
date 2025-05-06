@@ -1,7 +1,9 @@
+import aqp from "api-query-params";
 import { ErrorCustom } from "../helper/ErrorCustom.js";
 import Brand from "../model/brand.js";
 import { paginateModel } from "../utils/paginateModel.js";
 import {
+    errorResponse400,
     errorResponse500,
     successResponse,
     successResponseList,
@@ -10,18 +12,35 @@ import validateMongoDbId from "../utils/validateMongodbId.js";
 
 const getAllBrand = async (req, res) => {
     try {
-        const { page, size } = req.query;
-        const { content, pagination } = await paginateModel({
-            model: Brand,
-            page,
-            size,
-        });
+        const { filter } = aqp(req.query);
+        const { page, size } = filter;
+        const [brands, total] = await Promise.all([
+            Brand.aggregate([
+                {
+                    $match: {
+                        isActive: true,
+                    },
+                },
+                {
+                    $skip: page * size,
+                },
+                {
+                    $limit: size,
+                },
+            ]),
+            Brand.countDocuments({ isActive: true }),
+        ]);
 
         return successResponseList(
             res,
             "Lấy danh sách thương hiệu thành công!",
-            content,
-            pagination
+            brands,
+            {
+                total,
+                page: page,
+                size: size,
+                totalPages: Math.ceil(total / size),
+            }
         );
     } catch (error) {
         return errorResponse500(res, "Lỗi server", error.message);
@@ -30,9 +49,9 @@ const getAllBrand = async (req, res) => {
 
 const getBrandById = async (req, res) => {
     try {
-        const { id } = req.params;
+        const { id } = req.query;
         validateMongoDbId(id);
-        const brand = await Brand.findById(id).populate("products");
+        const brand = await Brand.findById(id);
         if (!brand) {
             return notFoundResponse(
                 res,
@@ -65,10 +84,10 @@ const createBrand = async (req, res) => {
 
 const updateBrand = async (req, res) => {
     try {
-        const { id } = req.params;
-        validateMongoDbId(id);
+        const { _id } = req.body;
+        validateMongoDbId(_id);
         const brand = await Brand.findByIdAndUpdate(
-            id,
+            _id,
             {
                 ...req.body,
             },

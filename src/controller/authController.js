@@ -13,10 +13,10 @@ import transporter from "../config/nodeMailer.js";
 const loginUser = async (req, res) => {
     try {
         const { username, password, otp } = req.body;
-        const existingUser = await User.findOne({ email: username });
+        const existingUser = await User.findOne({ username: username });
 
         if (!existingUser) {
-            return errorResponse400(res, "Email không tồn tại");
+            return errorResponse400(res, "Username không tồn tại");
         }
 
         const isMatch = await bcrypt.compare(password, existingUser.password);
