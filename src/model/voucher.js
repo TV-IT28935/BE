@@ -22,6 +22,10 @@ const vouchersSchema = new mongoose.Schema(
             type: Boolean,
             default: true,
         },
+        expireDate: {
+            type: Date,
+            default: true,
+        },
     },
     {
         timestamps: true,

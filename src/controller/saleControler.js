@@ -50,7 +50,9 @@ export const getSaleById = async (req, res) => {
     try {
         const { id } = req.query;
         validateMongoDbId(id);
-        const sale = await Sale.findById(id);
+        const sale = await Sale.findById(id).select(
+            "-updatedAt -__v -createdAt"
+        );
 
         if (!sale) {
             return notFoundResponse(res, "Không tìm thấy giảm giá", null, 404);

@@ -1,3 +1,4 @@
+import aqp from "api-query-params";
 import { generateToken } from "../config/jwtToken.js";
 import transporter from "../config/nodeMailer.js";
 import { ErrorCustom } from "../helper/ErrorCustom.js";
@@ -7,6 +8,7 @@ import {
     errorResponse400,
     errorResponse500,
     successResponse,
+    successResponseList,
 } from "../utils/responseHandler.js";
 import validateMongoDbId from "../utils/validateMongodbId.js";
 import bcrypt from "bcrypt";
@@ -60,11 +62,34 @@ const createUser = async (req, res) => {
 
 const getAllUser = async (req, res) => {
     try {
-        const users = await User.find({});
-        return successResponse(
+        const { filter } = aqp(req.query);
+        let { page = 0, size = 10, isActive } = filter;
+
+        page = parseInt(page);
+        size = parseInt(size);
+
+        const matchFilter = {};
+        if (isActive !== undefined) {
+            matchFilter.isActive = isActive === "true" || isActive === true;
+        }
+
+        const [users, total] = await Promise.all([
+            User.find(matchFilter)
+                .skip(page * size)
+                .limit(size),
+            User.countDocuments(matchFilter),
+        ]);
+
+        return successResponseList(
             res,
             "Lấy danh sách người dùng thành công",
-            users
+            users,
+            {
+                total,
+                page,
+                size,
+                totalPages: Math.ceil(total / size),
+            }
         );
     } catch (error) {
         return errorResponse500(
@@ -79,7 +104,9 @@ const getUserById = async (req, res) => {
     try {
         const { id } = req.params;
         validateMongoDbId(id);
-        const user = await User.findById(id);
+        const user = await User.findById(id).select(
+            "-updatedAt -__v -createdAt"
+        );
 
         if (!user) {
             return errorResponse500(res, "Người dùng không tồn tại", null, 404);
@@ -143,6 +170,87 @@ const updateUserById = async (req, res) => {
     }
 };
 
+const getAccountByRole = async (req, res) => {
+    try {
+        const { filter } = aqp(req.query);
+        const { page, size, isActive, roleName } = filter;
+
+        const result = await User.aggregate([
+            {
+                $match: {
+                    $and: [
+                        isActive
+                            ? {
+                                  isActive: isActive,
+                              }
+                            : {},
+                        {
+                            role: roleName,
+                        },
+                    ],
+                },
+            },
+            {
+                $lookup: {
+                    from: "brands",
+                    localField: "brand",
+                    foreignField: "_id",
+                    as: "brand",
+                },
+            },
+            {
+                $unwind: {
+                    path: "$brand",
+                    preserveNullAndEmptyArrays: true,
+                },
+            },
+            {
+                $lookup: {
+                    from: "sales",
+                    localField: "sale",
+                    foreignField: "_id",
+                    as: "sale",
+                },
+            },
+            {
+                $unwind: {
+                    path: "$sale",
+                    preserveNullAndEmptyArrays: true,
+                },
+            },
+            {
+                $skip: page * size,
+            },
+            {
+                $limit: size,
+            },
+        ]);
+
+        const total = await User.countDocuments([
+            {
+                isActive: isActive,
+            },
+            {
+                roleName: roleName,
+            },
+        ]);
+
+        return successResponseList(
+            res,
+            "Lấy danh sách người dùng thành công!",
+            result,
+            {
+                total,
+                page: page,
+                size: size,
+                totalPages: Math.ceil(total / size),
+            }
+        );
+    } catch (error) {
+        return errorResponse500(res, "Lỗi server", error.message);
+    }
+};
+
 export {
     createUser,
     getAllUser,
@@ -150,4 +258,5 @@ export {
     deleteUserById,
     updateUserById,
     getUserDetail,
+    getAccountByRole,
 };

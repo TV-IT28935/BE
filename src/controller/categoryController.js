@@ -1,26 +1,96 @@
+import aqp from "api-query-params";
 import Category from "../model/category.js";
-import { errorResponse500, successResponse } from "../utils/responseHandler.js";
+import {
+    errorResponse400,
+    errorResponse500,
+    successResponse,
+    successResponseList,
+} from "../utils/responseHandler.js";
 import validateMongoDbId from "../utils/validateMongodbId.js";
+import { ErrorCustom } from "../helper/ErrorCustom.js";
 
 export const getAllCategories = async (req, res) => {
     try {
-        const categories = await Category.find({});
-        return successResponse(
+        const { filter } = aqp(req.query);
+        const { page, size, isActive } = filter;
+        const [categories, total] = await Promise.all([
+            Category.aggregate([
+                {
+                    $match: {
+                        isActive: true,
+                    },
+                },
+                {
+                    $skip: page * size,
+                },
+                {
+                    $limit: size,
+                },
+            ]),
+            Category.countDocuments({ isActive: true }),
+        ]);
+        return successResponseList(
             res,
             "Lấy danh sách danh mục thành công!",
-            categories
+            categories,
+            {
+                total,
+                page: page,
+                size: size,
+                totalPages: Math.ceil(total / size),
+            }
         );
     } catch (error) {
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
 
-export const getCategoryAdmin = async (req, res) => {};
+export const getCategoryAdmin = async (req, res) => {
+    try {
+        const { filter } = aqp(req.query);
+        const { page, size, isActive } = filter;
+        const [categories, total] = await Promise.all([
+            Category.aggregate([
+                {
+                    $match: {},
+                },
+                {
+                    $skip: page * size,
+                },
+                {
+                    $limit: size,
+                },
+            ]),
+            Category.countDocuments({}),
+        ]);
+        return successResponseList(
+            res,
+            "Lấy danh sách danh mục thành công!",
+            categories,
+            {
+                total,
+                page: page,
+                size: size,
+                totalPages: Math.ceil(total / size),
+            }
+        );
+    } catch (error) {
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
+        return errorResponse500(res, "Lỗi server", error.message);
+    }
+};
 export const getCategoryById = async (req, res) => {
     try {
-        const { id } = req.params;
+        const { id } = req.query;
         validateMongoDbId(id);
-        const category = await Category.findById(id);
+        const category = await Category.findById(id).select(
+            "-updatedAt -__v -createdAt"
+        );
 
         if (!category || category.deletedAt) {
             return successResponse(res, "Không tìm thấy danh mục");
@@ -40,17 +110,24 @@ export const createCategory = async (req, res) => {
         const newCategory = await Category.create(req.body);
         return res.status(201).json({ success: true, data: newCategory });
     } catch (error) {
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
 
 export const updateCategory = async (req, res) => {
     try {
-        const { id } = req.params;
+        const { _id } = req.body;
         validateMongoDbId(id);
-        const updatedCategory = await Category.findByIdAndUpdate(id, req.body, {
-            new: true,
-        });
+        const updatedCategory = await Category.findByIdAndUpdate(
+            _id,
+            req.body,
+            {
+                new: true,
+            }
+        );
 
         if (!updatedCategory) {
             return successResponse(res, "Không tìm thấy danh mục");

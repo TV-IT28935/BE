@@ -47,9 +47,11 @@ export const getAllVouchers = async (req, res) => {
 
 export const getVoucherById = async (req, res) => {
     try {
-        const { id } = req.params;
+        const { id } = req.query;
         validateMongoDbId(id);
-        const voucher = await Voucher.findById(id);
+        const voucher = await Voucher.findById(id).select(
+            "-updatedAt -__v -createdAt"
+        );
 
         if (!voucher || voucher.deletedAt) {
             return successResponse(res, "Không tìm thấy voucher");
@@ -75,9 +77,9 @@ export const createVoucher = async (req, res) => {
 
 export const updateVoucher = async (req, res) => {
     try {
-        const { id } = req.params;
-        validateMongoDbId(id);
-        const updatedVoucher = await Voucher.findByIdAndUpdate(id, req.body, {
+        const { _id } = req.body;
+        validateMongoDbId(_id);
+        const updatedVoucher = await Voucher.findByIdAndUpdate(_id, req.body, {
             new: true,
         });
         return successResponse(

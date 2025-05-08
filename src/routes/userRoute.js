@@ -2,6 +2,7 @@ import express from "express";
 import {
     createUser,
     deleteUserById,
+    getAccountByRole,
     getAllUser,
     getUserById,
     getUserDetail,
@@ -25,11 +26,17 @@ import userAuth from "../middleware/userAuth.js";
 const router = express.Router();
 
 router.post("/create", validate(userSchemaJoi), createUser);
-router.get("/", authMiddleware, getAllUser);
+router.get("/admin/account/find-all", authMiddleware, getAllUser);
 
 router.get("/:id", authMiddleware, getUserById);
 router.delete("/:id", authMiddleware, deleteUserById);
-router.put("/update-profile", authMiddleware, validate(userSchemaJoi), updateUserById);
+router.put(
+    "/update-profile",
+    authMiddleware,
+    validate(userSchemaJoi),
+    updateUserById
+);
+router.get("/admin/account/by-role", authMiddleware, getAccountByRole);
 
 router.post("/login", loginUser);
 router.post("/logout", userAuth, logout);

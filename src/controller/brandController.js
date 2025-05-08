@@ -13,13 +13,15 @@ import validateMongoDbId from "../utils/validateMongodbId.js";
 const getAllBrand = async (req, res) => {
     try {
         const { filter } = aqp(req.query);
-        const { page, size } = filter;
+        const { page, size, isActive } = filter;
         const [brands, total] = await Promise.all([
             Brand.aggregate([
                 {
-                    $match: {
-                        isActive: true,
-                    },
+                    $match: isActive
+                        ? {
+                              isActive: true,
+                          }
+                        : {},
                 },
                 {
                     $skip: page * size,
@@ -51,7 +53,9 @@ const getBrandById = async (req, res) => {
     try {
         const { id } = req.query;
         validateMongoDbId(id);
-        const brand = await Brand.findById(id);
+        const brand = await Brand.findById(id).select(
+            "-updatedAt -__v -createdAt"
+        );
         if (!brand) {
             return notFoundResponse(
                 res,

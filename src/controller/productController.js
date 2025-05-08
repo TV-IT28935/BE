@@ -112,8 +112,6 @@ export const getProductById = async (req, res) => {
                     brand: 1,
                     sale: 1,
                     view: 1,
-                    createdAt: 1,
-                    updatedAt: 1,
                     categories: {
                         _id: 1,
                         title: 1,
@@ -136,6 +134,7 @@ export const getProductById = async (req, res) => {
 };
 
 export const createProduct = async (req, res) => {
+    console.log(req.body, "xxxxxxxx");
     try {
         const { categoryIds, ...productData } = req.body;
 
@@ -206,13 +205,84 @@ export const deleteProduct = async (req, res) => {
     }
 };
 
-export const getAllProductByBrand = async () => {};
-export const countProduct = async () => {};
-export const searchByKeyword = async () => {};
-export const getListHot = async () => {};
-export const getRecommendationById = async () => {};
-export const relateProduct = async () => {};
-export const toggleLikeProduct = async () => {};
-export const getAllProductWishList = async () => {};
+export const getAllProductByBrand = async (req, res) => {
+    try {
+        const { filter } = aqp(req.query);
+        let { page = 0, size = 10, isActive = true, brandId } = filter;
 
-export const filterProducts = async () => {};
+        page = parseInt(page);
+        size = parseInt(size);
+
+        const activeFilter =
+            isActive !== undefined
+                ? { isActive: isActive === "true" || isActive === true }
+                : {};
+
+        const matchFilter = {
+            ...activeFilter,
+            ...(brandId && mongoose.Types.ObjectId.isValid(brandId)
+                ? { brand: new mongoose.Types.ObjectId(brandId) }
+                : {}),
+        };
+
+        const result = await Product.aggregate([
+            { $match: matchFilter },
+            {
+                $lookup: {
+                    from: "brands",
+                    localField: "brand",
+                    foreignField: "_id",
+                    as: "brand",
+                },
+            },
+            {
+                $unwind: {
+                    path: "$brand",
+                    preserveNullAndEmptyArrays: true,
+                },
+            },
+            {
+                $lookup: {
+                    from: "sales",
+                    localField: "sale",
+                    foreignField: "_id",
+                    as: "sale",
+                },
+            },
+            {
+                $unwind: {
+                    path: "$sale",
+                    preserveNullAndEmptyArrays: true,
+                },
+            },
+            { $skip: page * size },
+            { $limit: size },
+        ]);
+
+        const total = await Product.countDocuments(matchFilter);
+
+        return successResponseList(
+            res,
+            "Lấy danh sách sản phẩm thành công!",
+            result,
+            {
+                total,
+                page,
+                size,
+                totalPages: Math.ceil(total / size),
+            }
+        );
+    } catch (error) {
+        return errorResponse500(res, "Lỗi server", error.message);
+    }
+};
+
+export const countProduct = async (req, res) => {};
+export const searchByKeyword = async (req, res) => {};
+export const getListHot = async (req, res) => {};
+export const getRecommendationById = async (req, res) => {};
+export const relateProduct = async (req, res) => {};
+export const toggleLikeProduct = async (req, res) => {};
+export const getAllProductWishList = async (req, res) => {};
+
+export const filterProducts = async (req, res) => {};

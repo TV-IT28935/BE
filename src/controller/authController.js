@@ -13,7 +13,14 @@ import transporter from "../config/nodeMailer.js";
 const loginUser = async (req, res) => {
     try {
         const { username, password, otp } = req.body;
-        const existingUser = await User.findOne({ username: username });
+        const existingUser = await User.findOne({
+            $or: [
+                { username: username },
+                {
+                    email: username,
+                },
+            ],
+        });
 
         if (!existingUser) {
             return errorResponse400(res, "Username không tồn tại");
