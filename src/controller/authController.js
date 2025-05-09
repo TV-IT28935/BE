@@ -9,6 +9,7 @@ import {
     successResponse,
 } from "../utils/responseHandler.js";
 import transporter from "../config/nodeMailer.js";
+import generatePassword from "../utils/generatePassword.js";
 
 const loginUser = async (req, res) => {
     try {
@@ -32,68 +33,31 @@ const loginUser = async (req, res) => {
             return errorResponse400(res, "Mật khẩu không đúng");
         }
 
-        // if (existingUser.verifyOtp === "" || existingUser.verifyOtp !== otp) {
-        //     return errorResponse400(res, "Mã OTP không đúng!");
-        // }
-        // if (existingUser.verifyOtpExpireAt < Date.now()) {
-        //     return errorResponse400(res, "Mã OTP hết hạn!");
-        // }
+        await sendOtp(username);
 
-        // existingUser.verifyOtp = "";
-        // existingUser.verifyOtpExpireAt = 0;
-        // existingUser.isAccountVerified = true;
+        // const refreshToken = generateRefreshToken(existingUser._id);
+        // const accessToken = generateToken(existingUser._id);
 
-        // await existingUser.save();
+        // res.cookie("access_token", accessToken, {
+        //     httpOnly: true,
+        //     secure: false,
+        //     maxAge: 24 * 60 * 60 * 1000,
+        // });
 
-        const refreshToken = generateRefreshToken(existingUser._id);
-        const accessToken = generateToken(existingUser._id);
+        // res.cookie("refresh_token", refreshToken, {
+        //     httpOnly: true,
+        //     secure: false,
+        //     maxAge: 7 * 24 * 60 * 60 * 1000,
+        // });
 
-        res.cookie("access_token", accessToken, {
-            httpOnly: true,
-            secure: false,
-            maxAge: 24 * 60 * 60 * 1000,
-        });
-
-        res.cookie("refresh_token", refreshToken, {
-            httpOnly: true,
-            secure: false,
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-        });
-
-        return successResponse(res, "Thành công!", {
-            id: existingUser._id,
-            accessToken,
-            refreshToken,
-        });
+        return successResponse(res, "Gửi mã OTP thành công!");
     } catch (error) {
         return errorResponse500(res, error.message);
     }
 };
 
-const sendOtp = async (req, res) => {
+const sendOtp = async () => {
     try {
-        const { username, password } = req.body;
-
-        const existingUser = await User.findOne({ email: username });
-
-        if (!existingUser) {
-            return errorResponse400(res, "Email không tồn tại");
-        }
-
-        const isMatch = await bcrypt.compare(password, existingUser.password);
-
-        if (!isMatch) {
-            return errorResponse400(res, "Mật khẩu không đúng");
-        }
-
-        if (!existingUser) {
-            return errorResponse500(res, "User không tồn tại!");
-        }
-
-        if (existingUser.isAccountVerified) {
-            return successResponse(res, "Tài khoản đã được xác minh!");
-        }
-
         const otp = String(Math.floor(100000 + Math.random() * 900000));
         const otpExpire = Date.now() + 10 * 60 * 1000;
 
@@ -110,42 +74,42 @@ const sendOtp = async (req, res) => {
         };
 
         await transporter.sendMail(mailOptions);
-
-        return successResponse(res, "Gửi mã OTP đến bạn thành công!");
     } catch (error) {
         return errorResponse500(res, error.message);
     }
 };
 
-// const verifyOtp = async (req, res) => {
-//   const { otp } = req.body;
-//   const userId = req.user?.id;
-//   if (!userId || !otp) {
-//     return errorResponse400(res, "Người dùng không tồn tại!");
-//   }
-//   try {
-//     const user = await User.findById(userId);
+const verifyOtp = async (req, res) => {
+    const { username, otp } = req.body;
+    try {
+        const user = await User.findOne({
+            $or: [{ email: username }, { username: username }],
+        });
 
-//     if (!user) {
-//       return errorResponse400(res, "Người dùng không tồn tại!");
-//     }
-//     if (user.verifyOtp === "" || user.verifyOtp !== otp) {
-//       return errorResponse400(res, "Mã OTP không đúng!");
-//     }
-//     if (user.verifyOtpExpireAt < Date.now()) {
-//       return errorResponse400(res, "Mã OTP hết hạn!");
-//     }
-//     user.verifyOtp = "";
-//     user.verifyOtpExpireAt = 0;
-//     user.isAccountVerified = true;
+        if (user.verifyOtp === "" || user.verifyOtp !== otp) {
+            return errorResponse400(res, "Mã OTP không đúng!");
+        }
+        if (user.verifyOtpExpireAt < Date.now()) {
+            return errorResponse400(res, "Mã OTP hết hạn!");
+        }
+        user.verifyOtp = "";
+        user.verifyOtpExpireAt = 0;
+        user.isAccountVerified = true;
 
-//     await user.save();
+        await user.save();
 
-//     return successResponse(res, "Xác thực thành công!");
-//   } catch (error) {
-//     return errorResponse500(res, error.message);
-//   }
-// };
+        const refreshToken = generateRefreshToken(user._id);
+        const accessToken = generateToken(user._id);
+
+        return successResponse(res, "Xác thực thành công!", {
+            id: user._id,
+            accessToken,
+            refreshToken,
+        });
+    } catch (error) {
+        return errorResponse500(res, error.message);
+    }
+};
 
 const logout = async (req, res) => {
     try {
@@ -222,12 +186,14 @@ const forgotPassword = async (req, res) => {
 };
 
 const resetPassword = async (req, res) => {
-    const { email, password, otp } = req.body;
-    if (!email || !password || !otp) {
+    const { username, otp } = req.body;
+    if (!username || !otp) {
         return errorResponse400(res, "Bạn nhập thiếu dữ liệu!");
     }
     try {
-        const user = await User.findOne({ email });
+        const user = await User.findOne({
+            $or: [{ email: username }, { username }],
+        });
         if (!user) {
             return errorResponse400(res, "Email không tồn tại");
         }
@@ -237,6 +203,8 @@ const resetPassword = async (req, res) => {
         if (user.resetOtpExpireAt < Date.now()) {
             return errorResponse400(res, "Mã OTP hết hạn!");
         }
+
+        const password = generatePassword();
 
         const hashedPassword = await bcrypt.hash(password, 12);
 
