@@ -6,28 +6,31 @@ import {
     updateCategory,
     deleteCategory,
     getCategoryAdmin,
-} from "../controller/categoryController.js";
+} from "../controller/category.controller.js";
 import validate from "../middleware/validate.js";
 import categorySchemaJoi from "../validation/category.js";
-import { authMiddleware } from "../middleware/authMiddlewares.js";
+import {
+    authIsAdminMiddleware,
+    authMiddleware,
+} from "../middleware/authMiddlewares.js";
 
 const router = express.Router();
 
 router.get("/list", getAllCategories);
-router.get("/list-admin", authMiddleware, getCategoryAdmin);
-router.get("/detail", authMiddleware, getCategoryById);
+router.get("/list-admin", authIsAdminMiddleware, getCategoryAdmin);
+router.get("/detail", authIsAdminMiddleware, getCategoryById);
 router.post(
     "/create",
     validate(categorySchemaJoi),
-    authMiddleware,
+    authIsAdminMiddleware,
     createCategory
 );
 router.put(
     "/update",
     validate(categorySchemaJoi),
-    authMiddleware,
+    authIsAdminMiddleware,
     updateCategory
 );
-router.delete("/delete", authMiddleware, deleteCategory);
+router.delete("/delete", authIsAdminMiddleware, deleteCategory);
 
 export default router;

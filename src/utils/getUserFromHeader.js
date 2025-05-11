@@ -1,0 +1,33 @@
+import User from "../model/user.js";
+import {
+    authenticationResponse,
+    authorizationResponse,
+} from "./responseHandler.js";
+
+const getUserFromHeader = async (req, res) => {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return authorizationResponse(
+            res,
+            "There is no token attached to header"
+        );
+    }
+
+    const token = authHeader.split(" ")[1];
+
+    try {
+        const decodedUser = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decodedUser?.id);
+
+        if (!user) {
+            return authenticationResponse(res, "User not found");
+        }
+
+        return user;
+    } catch (error) {
+        return authenticationResponse(res, "Not Authorized or token expired");
+    }
+};
+
+export default getUserFromHeader;

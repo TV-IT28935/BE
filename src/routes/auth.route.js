@@ -8,7 +8,7 @@ import {
   resetPassword,
   sendOtp,
   sendOtpResetPassword,
-} from "../controller/authController.js";
+} from "../controller/auth.controller.js";
 import userAuth from "../middleware/userAuth.js";
 
 const router = express.Router();

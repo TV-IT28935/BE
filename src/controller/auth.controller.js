@@ -13,7 +13,7 @@ import generatePassword from "../utils/generatePassword.js";
 
 const loginUser = async (req, res) => {
     try {
-        const { username, password, otp } = req.body;
+        const { username, password } = req.body;
         const existingUser = await User.findOne({
             $or: [
                 { username: username },
@@ -33,7 +33,7 @@ const loginUser = async (req, res) => {
             return errorResponse400(res, "Mật khẩu không đúng");
         }
 
-        await sendOtp(username);
+        await sendOtp(res, existingUser);
 
         // const refreshToken = generateRefreshToken(existingUser._id);
         // const accessToken = generateToken(existingUser._id);
@@ -56,7 +56,7 @@ const loginUser = async (req, res) => {
     }
 };
 
-const sendOtp = async () => {
+const sendOtp = async (res, existingUser) => {
     try {
         const otp = String(Math.floor(100000 + Math.random() * 900000));
         const otpExpire = Date.now() + 10 * 60 * 1000;
@@ -221,11 +221,13 @@ const resetPassword = async (req, res) => {
 };
 
 const changePassword = async (req, res) => {
-    const { email, password, passwordNew } = req.body;
+    const { username, password, newPassword } = req.body;
     try {
-        const user = await User.findOne({ email });
+        const user = await User.findOne({
+            $or: [{ email: username }, { username }],
+        });
         if (!user) {
-            return errorResponse400(res, "Email không tồn tại!");
+            return errorResponse400(res, "Username không tồn tại!");
         }
         const isMatch = await bcrypt.compare(password, user.password);
 
@@ -233,7 +235,7 @@ const changePassword = async (req, res) => {
             return errorResponse400(res, "Mật khẩu không đúng!");
         }
 
-        const hashedPassword = await bcrypt.hash(passwordNew, 12);
+        const hashedPassword = await bcrypt.hash(newPassword, 12);
 
         user.password = hashedPassword;
 
@@ -305,5 +307,5 @@ export {
     changePassword,
     sendOtp,
     sendOtpResetPassword,
-    // verifyOtp,
+    verifyOtp,
 };

@@ -1,4 +1,4 @@
-export default generatePassword = (l = 12) =>
+const generatePassword = (l = 12) =>
     [...Array(l)]
         .map(
             () =>
@@ -7,3 +7,5 @@ export default generatePassword = (l = 12) =>
                 ]
         )
         .join("");
+
+export default generatePassword;

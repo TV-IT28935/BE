@@ -2,7 +2,6 @@ import aqp from "api-query-params";
 import { generateToken } from "../config/jwtToken.js";
 import transporter from "../config/nodeMailer.js";
 import { ErrorCustom } from "../helper/ErrorCustom.js";
-import Role from "../model/role.js";
 import User from "../model/user.js";
 import {
     errorResponse400,

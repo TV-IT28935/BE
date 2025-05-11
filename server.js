@@ -5,13 +5,17 @@ import cookieParser from "cookie-parser";
 import morgan from "morgan";
 import dbConnect from "./src/config/dbConnect.js";
 import cors from "cors";
-import userRouter from "./src/routes/userRoute.js";
-import authRouter from "./src/routes/authRoute.js";
-import categoryRouter from "./src/routes/categoryRoute.js";
-import productRouter from "./src/routes/productRoute.js";
-import saleRouter from "./src/routes/saleRoute.js";
-import voucherRouter from "./src/routes/voucherRoute.js";
-import brandRouter from "./src/routes/brandRoute.js";
+import userRouter from "./src/routes/user.route.js";
+import authRouter from "./src/routes/auth.route.js";
+import categoryRouter from "./src/routes/category.route.js";
+import productRouter from "./src/routes/product.route.js";
+import saleRouter from "./src/routes/sale.route.js";
+import voucherRouter from "./src/routes/voucher.route.js";
+import brandRouter from "./src/routes/brand.route.js";
+import attributeRouter from "./src/routes/attribute.route.js";
+import cartRouter from "./src/routes/cart.route.js";
+import orderRouter from "./src/routes/order.route.js";
+
 dotenv.config();
 
 const PORT = process.env.PORT || 8000;
@@ -36,9 +40,9 @@ app.use("/api/v1/product", productRouter);
 app.use("/api/v1/sale", saleRouter);
 app.use("/api/v1/voucher", voucherRouter);
 app.use("/api/v1/brand", brandRouter);
-
-// app.use("/v1/api/position", positionRouter);
-
+app.use("/api/v1/attribute", attributeRouter);
+app.use("/api/v1/cart", cartRouter);
+app.use("/api/v1/order", orderRouter);
 const startServer = async () => {
     try {
         await dbConnect();

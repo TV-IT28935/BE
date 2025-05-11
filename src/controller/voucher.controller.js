@@ -120,4 +120,37 @@ export const deleteVoucher = async (req, res) => {
     }
 };
 
-export const getVoucherByCode = async (req, res) => {};
+export const getVoucherByCode = async (req, res) => {
+    try {
+        const { code } = req.query;
+        if (!code) {
+            return errorResponse400(res, "Mã giảm giá không hợp lệ!");
+        }
+        const voucher = await Voucher.findOne({ code }).select(
+            "-updatedAt -__v -createdAt -isActive"
+        );
+
+        if (!voucher) {
+            return errorResponse400(res, "Không tìm thấy voucher");
+        }
+
+        if (voucher?.expireDate && new Date(voucher.expireDate) < new Date()) {
+            return errorResponse400(res, "Voucher đã hết hạn");
+        }
+
+        console.log(voucher.count, "xxxxxxxx");
+
+        if (voucher?.count <= 0) {
+            return errorResponse400(res, "Voucher đã hết lượt sử dụng");
+        }
+
+        delete voucher.count;
+
+        return successResponse(res, "Lấy voucher thành công!", voucher);
+    } catch (error) {
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
+        return errorResponse500(res, "Lỗi server", error.message);
+    }
+};
