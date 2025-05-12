@@ -13,7 +13,7 @@ const userSchema = new mongoose.Schema(
         password: {
             type: String,
             required: true,
-            minLength: 6,
+            minLength: 3,
             maxLength: 60,
         },
         username: {
@@ -22,36 +22,9 @@ const userSchema = new mongoose.Schema(
             minLength: 3,
             maxLength: 50,
         },
-        avatar: {
-            type: String,
-            default: "",
-            maxLength: 255,
-        },
-        fullName: {
-            type: String,
-            default: "",
-            maxLength: 255,
-        },
-        phone: {
-            type: String,
-            required: true,
-            minLength: 10,
-            maxLength: 10,
-        },
-        gender: {
-            type: String,
-            default: "",
-            maxLength: 255,
-        },
-        address: {
-            type: String,
-            default: "",
-            maxLength: 255,
-        },
-        birthday: {
-            type: String,
-            default: "",
-            maxLength: 255,
+        isActive: {
+            type: Boolean,
+            default: true,
         },
         role: {
             type: String,

@@ -10,6 +10,7 @@ import {
 } from "../utils/responseHandler.js";
 import transporter from "../config/nodeMailer.js";
 import generatePassword from "../utils/generatePassword.js";
+import UserDetail from "../model/userDetail.js";
 
 const loginUser = async (req, res) => {
     try {
@@ -124,19 +125,19 @@ const logout = async (req, res) => {
 
         await user.save();
 
-        res.clearCookie("access_token", {
-            httpOnly: true,
-            secure: false,
-        });
-        res.clearCookie("refresh_token", {
-            httpOnly: true,
-            secure: false,
-        });
+        // res.clearCookie("access_token", {
+        //     httpOnly: true,
+        //     secure: false,
+        // });
+        // res.clearCookie("refresh_token", {
+        //     httpOnly: true,
+        //     secure: false,
+        // });
 
-        res.clearCookie("accessToken", {
-            httpOnly: true,
-            secure: false,
-        });
+        // res.clearCookie("accessToken", {
+        //     httpOnly: true,
+        //     secure: false,
+        // });
 
         return successResponse(res, "Thoát đăng nhập thành công!");
     } catch (error) {

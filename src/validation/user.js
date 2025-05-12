@@ -1,62 +1,51 @@
 import Joi from "joi";
-import mongoose from "mongoose";
 
 const userSchemaJoi = Joi.object({
-  id: Joi.string().optional(),
-  email: Joi.string().email().min(5).max(50).required().messages({
-    "string.email": "Email không hợp lệ.",
-    "string.min": "Email phải có ít nhất 5 ký tự.",
-    "string.max": "Email không được vượt quá 50 ký tự.",
-    "any.required": "Email là bắt buộc.",
-  }),
-
-  password: Joi.string().min(6).max(60).required().messages({
-    "string.min": "Mật khẩu phải có ít nhất 6 ký tự.",
-    "string.max": "Mật khẩu không được vượt quá 60 ký tự.",
-    "any.required": "Mật khẩu là bắt buộc.",
-  }),
-
-  username: Joi.string().min(3).max(50).required().messages({
-    "string.min": "Tên người dùng phải có ít nhất 3 ký tự.",
-    "string.max": "Tên người dùng không được quá 50 ký tự.",
-    "any.required": "Tên người dùng là bắt buộc.",
-  }),
-
-  avatar: Joi.string().max(255).optional().allow("").messages({
-    "string.max": "Avatar không được vượt quá 255 ký tự.",
-  }),
-
-  phone: Joi.string()
-    .pattern(/^[0-9]{10}$/)
-    .required()
-    .messages({
-      "string.pattern.base": "Số điện thoại phải có đúng 10 chữ số.",
-      "any.required": "Số điện thoại là bắt buộc.",
+    id: Joi.string().optional(),
+    email: Joi.string().email().min(5).max(255).required().messages({
+        "string.email": "Email không hợp lệ.",
+        "string.min": "Email phải có ít nhất 5 ký tự.",
+        "string.max": "Email không được vượt quá 255 ký tự.",
+        "any.required": "Email là bắt buộc.",
+    }),
+    fullName: Joi.string().max(255).required().messages({
+        "string.max": "Full name không được vượt quá 255 ký tự.",
+        "any.required": "Full name là bắt buộc.",
+    }),
+    birthdate: Joi.string().max(255).required().messages({
+        "string.max": "Ngày sinh không được vượt quá 255 ký tự.",
+        "any.required": "Ngày sinh là bắt buộc.",
+    }),
+    gender: Joi.string().max(10).required().messages({
+        "any.required": "Giới tính là bắt buộc.",
+    }),
+    address: Joi.string().max(255).required().messages({
+        "string.max": "Địa chỉ không được vượt quá 255 ký tự.",
+        "any.required": "Địa chỉ là bắt buộc.",
     }),
 
-  status: Joi.string()
-    .valid("active", "inactive", "banned")
-    .default("active")
-    .messages({
-      "any.only":
-        "Trạng thái chỉ có thể là 'active', 'inactive' hoặc 'banned'.",
+    password: Joi.string().min(3).max(60).required().messages({
+        "string.min": "Mật khẩu phải có ít nhất 3 ký tự.",
+        "string.max": "Mật khẩu không được vượt quá 60 ký tự.",
+        "any.required": "Mật khẩu là bắt buộc.",
     }),
 
-  isOnline: Joi.boolean().default(false).messages({
-    "boolean.base": "Giá trị của isOnline phải là true hoặc false.",
-  }),
+    username: Joi.string().max(255).required().messages({
+        "string.max": "Tên người dùng không được quá 255 ký tự.",
+        "any.required": "Tên người dùng là bắt buộc.",
+    }),
 
-  jobPosition: Joi.string().optional().allow("").messages({
-    "string.base": "Chức vụ phải là một chuỗi ký tự.",
-  }),
+    avatar: Joi.string().max(255).optional().allow("").messages({
+        "string.max": "Avatar không được vượt quá 255 ký tự.",
+    }),
 
-  introduce: Joi.string().optional().allow("").messages({
-    "string.base": "Giới thiệu phải là một chuỗi ký tự.",
-  }),
-
-  deletedAt: Joi.date().allow(null).optional().messages({
-    "date.base": "deletedAt phải là kiểu ngày hợp lệ.",
-  }),
+    phone: Joi.string()
+        .pattern(/^[0-9]{10}$/)
+        .required()
+        .messages({
+            "string.pattern.base": "Số điện thoại phải có đúng 10 chữ số.",
+            "any.required": "Số điện thoại là bắt buộc.",
+        }),
 });
 
 export default userSchemaJoi;

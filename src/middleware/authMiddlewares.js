@@ -1,10 +1,10 @@
 import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
 import User from "../model/user.js";
+import UserDetail from "../model/userDetail.js";
 import {
     authenticationResponse,
     authorizationResponse,
-    errorResponse400,
     errorResponse500,
 } from "../utils/responseHandler.js";
 dotenv.config();
@@ -13,10 +13,7 @@ const authMiddleware = async (req, res, next) => {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        return authorizationResponse(
-            res,
-            "Vui lòng đặp nhập!"
-        );
+        return authorizationResponse(res, "Vui lòng đặp nhập!");
     }
 
     const token = authHeader.split(" ")[1];
@@ -65,4 +62,4 @@ const authIsAdminMiddleware = async (req, res, next) => {
     }
 };
 
-export { authMiddleware, authIsAdminMiddleware };
+export { authIsAdminMiddleware, authMiddleware };

@@ -98,8 +98,17 @@ export const getAllProduct = async (req, res) => {
                 $project: {
                     name: 1,
                     code: 1,
-                    brand: 1,
-                    sale: 1,
+                    brand: {
+                        _id: 1,
+                        name: 1,
+                    },
+                    sale: {
+                        _id: 1,
+                        isActive: 1,
+                        discount: 1,
+                        description: 1,
+                        name: 1,
+                    },
                     view: 1,
                     categories: {
                         _id: 1,
@@ -613,7 +622,9 @@ export const relateProduct = async (req, res) => {
                         stock: 1,
                         cache: 1,
                     },
-                    likeQuantity: 1,
+                    likeQuantity: {
+                        _id: 1,
+                    },
                 },
             },
         ]);
@@ -627,6 +638,8 @@ export const relateProduct = async (req, res) => {
                 const likedItem = productUserLike.find((item) => {
                     return item.product.equals(product._id);
                 });
+
+                console.log(likedItem, "likedItem");
                 return {
                     ...product,
                     liked: likedItem?.liked,
@@ -783,30 +796,174 @@ export const getAllProductWishList = async (req, res) => {
 
 export const filterProducts = async (req, res) => {
     try {
-        const { brandIds, categoryIds, max, min, count, page } = req.body;
+        const { brandIds, categoryIds, max, min, size, page, userId } =
+            req.body;
+        const brandIdsNew = brandIds.map(
+            (id) => new mongoose.Types.ObjectId(id)
+        );
+        const categoryIdsNew = categoryIds.map(
+            (id) => new mongoose.Types.ObjectId(id)
+        );
+
+        const filter = {};
+        if (brandIdsNew.length > 0) {
+            filter.brand = { $in: brandIdsNew };
+        }
+        // if (categoryIdsNew.length > 0) {
+        //     filter["categories._id"] = { $in: categoryIdsNew };
+        // }
+
+        // if(min !== undefined &&
+        //     max !== undefined) {
+
+        //     }
         const products = await Product.aggregate([
             {
+                $match: filter,
+            },
+            { $sort: { createdAt: -1 } },
+            {
+                $lookup: {
+                    from: "brands",
+                    localField: "brand",
+                    foreignField: "_id",
+                    as: "brand",
+                },
+            },
+            {
+                $unwind: {
+                    path: "$brand",
+                    preserveNullAndEmptyArrays: true,
+                },
+            },
+            {
+                $lookup: {
+                    from: "sales",
+                    localField: "sale",
+                    foreignField: "_id",
+                    as: "sale",
+                },
+            },
+            {
+                $unwind: {
+                    path: "$sale",
+                    preserveNullAndEmptyArrays: true,
+                },
+            },
+            {
+                $lookup: {
+                    from: "product_categories",
+                    localField: "_id",
+                    foreignField: "product",
+                    as: "productCategories",
+                },
+            },
+
+            {
+                $lookup: {
+                    from: "categories",
+                    localField: "productCategories.category",
+                    foreignField: "_id",
+                    as: "categories",
+                },
+            },
+            {
+                $lookup: {
+                    from: "attributes",
+                    localField: "_id",
+                    foreignField: "product",
+                    as: "attributes",
+                },
+            },
+            {
+                $lookup: {
+                    from: "product_user_likes",
+                    localField: "_id",
+                    foreignField: "product",
+                    as: "likeQuantity",
+                },
+            },
+            {
                 $match: {
-                    $and: [
-                        {
-                            brand: {
-                                $in: brandIds,
+                    ...(categoryIdsNew.length > 0 && {
+                        categories: {
+                            $elemMatch: {
+                                _id: { $in: categoryIdsNew },
                             },
                         },
-                        {
-                            brand: {
-                                $in: brandIds,
+                    }),
+                    ...(min !== 0 &&
+                        max !== 0 && {
+                            attributes: {
+                                $elemMatch: {
+                                    price: { $gte: min, $lte: max },
+                                },
                             },
-                        },
-                        {
-                            brand: {
-                                $in: brandIds,
-                            },
-                        },
-                    ],
+                        }),
+                },
+            },
+            {
+                $skip: page * size,
+            },
+            {
+                $limit: size,
+            },
+            {
+                $project: {
+                    name: 1,
+                    code: 1,
+                    brand: {
+                        _id: 1,
+                        name: 1,
+                    },
+                    sale: {
+                        _id: 1,
+                        isActive: 1,
+                        discount: 1,
+                        description: 1,
+                        name: 1,
+                    },
+                    view: 1,
+                    categories: {
+                        _id: 1,
+                        name: 1,
+                        code: 1,
+                    },
+                    attributes: {
+                        _id: 1,
+                        price: 1,
+                        size: 1,
+                        stock: 1,
+                        cache: 1,
+                    },
+                    likeQuantity: {
+                        _id: 1,
+                    },
                 },
             },
         ]);
+
+        let result = [];
+
+        if (userId !== "undefined") {
+            const productUserLike = await ProductUserLike.find({
+                user: userId,
+            });
+
+            result = products.map((product) => {
+                const likedItem = productUserLike.find((item) => {
+                    return item.product.equals(product._id);
+                });
+                return {
+                    ...product,
+                    liked: likedItem?.liked,
+                };
+            });
+        } else {
+            result = products;
+        }
+
+        return successResponseList(res, "Lọc danh sách thành công!", result);
     } catch (error) {
         if (error instanceof ErrorCustom) {
             return errorResponse400(res, error.message);
