@@ -11,10 +11,13 @@ import {
     verifyOtp,
 } from "../controller/auth.controller.js";
 import {
+    countAccount,
+    createAccount,
     createUser,
     deleteUserById,
     getAccountByRole,
     getAllUser,
+    getTotalPage,
     getUserById,
     getUserDetail,
     updateUserById,
@@ -24,25 +27,38 @@ import {
     authMiddleware,
 } from "../middleware/authMiddlewares.js";
 import validate from "../middleware/validate.js";
-import userSchemaJoi from "../validation/user.js";
+import userSchemaJoi from "../validation/user.validation.js";
+import userDetailSchemaJoi from "../validation/userDetail.validation.js";
 
 const router = express.Router();
 
 router.post("/create", validate(userSchemaJoi), createUser);
 router.get("/admin/account/find-all", authIsAdminMiddleware, getAllUser);
+router.post(
+    "/admin/create",
+    authIsAdminMiddleware,
+    validate(userDetailSchemaJoi),
+    createAccount
+);
+router.get(
+    "/api/v1/user/admin/total-page",
+    authIsAdminMiddleware,
+    getTotalPage
+);
+router.get("/api/v1/user/admin/count", authIsAdminMiddleware, countAccount);
 
 router.get("/:id", authMiddleware, getUserById);
 router.delete("/:id", authIsAdminMiddleware, deleteUserById);
 router.put(
     "/update-profile",
     authMiddleware,
-    validate(userSchemaJoi),
+    validate(userDetailSchemaJoi),
     updateUserById
 );
 router.get("/admin/account/by-role", authIsAdminMiddleware, getAccountByRole);
 
+router.get("/detail", authMiddleware, getUserDetail);
 router.post("/login", loginUser);
-router.post("/logout", authMiddleware, logout);
 router.post("/forgot-password", forgotPassword);
 router.put("/reset-password", resetPassword);
 router.post("/refresh-token", handleRefreshToken);
@@ -50,6 +66,5 @@ router.put("/change-password", changePassword);
 router.post("/send-otp", sendOtp);
 router.post("/verify-otp", verifyOtp);
 router.post("/send-otp-reset", sendOtpResetPassword);
-router.get("/detail", authMiddleware, getUserDetail);
 
 export default router;

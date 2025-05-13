@@ -963,6 +963,18 @@ export const filterProducts = async (req, res) => {
             result = products;
         }
 
+        result = products.filter((product) =>
+            product.attributes.some((attr) => {
+                const finalPrice =
+                    attr.price - (attr.price * product.sale.discount) / 100;
+
+                const isMinValid = min ? finalPrice > min : true;
+                const isMaxValid = max ? finalPrice < max : true;
+
+                return isMinValid && isMaxValid;
+            })
+        );
+
         return successResponseList(res, "Lọc danh sách thành công!", result);
     } catch (error) {
         if (error instanceof ErrorCustom) {

@@ -1,7 +1,6 @@
 import aqp from "api-query-params";
 import { ErrorCustom } from "../helper/ErrorCustom.js";
 import Brand from "../model/brand.js";
-import { paginateModel } from "../utils/paginateModel.js";
 import {
     errorResponse400,
     errorResponse500,
@@ -141,9 +140,7 @@ const deleteBrand = async (req, res) => {
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
-const getAllBrandAdmin = async (req, res) => {
-    
-}
+const getAllBrandAdmin = async (req, res) => {};
 export {
     getAllBrand,
     getBrandById,

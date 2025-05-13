@@ -6,7 +6,6 @@ import morgan from "morgan";
 import dbConnect from "./src/config/dbConnect.js";
 import cors from "cors";
 import userRouter from "./src/routes/user.route.js";
-import authRouter from "./src/routes/auth.route.js";
 import categoryRouter from "./src/routes/category.route.js";
 import productRouter from "./src/routes/product.route.js";
 import saleRouter from "./src/routes/sale.route.js";
@@ -33,7 +32,6 @@ app.use(
     })
 );
 
-app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/user", userRouter);
 app.use("/api/v1/category", categoryRouter);
 app.use("/api/v1/product", productRouter);
@@ -43,6 +41,7 @@ app.use("/api/v1/brand", brandRouter);
 app.use("/api/v1/attribute", attributeRouter);
 app.use("/api/v1/cart", cartRouter);
 app.use("/api/v1/order", orderRouter);
+
 const startServer = async () => {
     try {
         await dbConnect();

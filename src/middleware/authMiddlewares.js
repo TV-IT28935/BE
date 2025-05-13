@@ -11,7 +11,7 @@ import {
 dotenv.config();
 
 const authMiddleware = async (req, res, next) => {
-    const authHeader = req.headers.authorization;
+    const authHeader = req?.headers?.authorization;
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
         return errorResponse400(res, "Vui lòng đặp nhập!");
@@ -30,6 +30,9 @@ const authMiddleware = async (req, res, next) => {
         req.user = user;
         next();
     } catch (error) {
+        if (error.name === "TokenExpiredError") {
+            return authenticationResponse(res, "Bạn đã hết phiên đăng nhập!");
+        }
         return errorResponse500(res, "Lỗi server!", error.message);
     }
 };
@@ -57,6 +60,9 @@ const authIsAdminMiddleware = async (req, res, next) => {
         req.user = user;
         next();
     } catch (error) {
+        if (error.name === "TokenExpiredError") {
+            return authenticationResponse(res, "Bạn đã hết phiên đăng nhập!");
+        }
         return errorResponse500(res, "Lỗi server!", error.message);
     }
 };
