@@ -141,5 +141,14 @@ const deleteBrand = async (req, res) => {
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
-
-export { getAllBrand, getBrandById, createBrand, updateBrand, deleteBrand };
+const getAllBrandAdmin = async (req, res) => {
+    
+}
+export {
+    getAllBrand,
+    getBrandById,
+    createBrand,
+    updateBrand,
+    deleteBrand,
+    getAllBrandAdmin,
+};

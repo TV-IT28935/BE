@@ -1,20 +1,5 @@
 import express from "express";
 import {
-    createUser,
-    deleteUserById,
-    getAccountByRole,
-    getAllUser,
-    getUserById,
-    getUserDetail,
-    updateUserById,
-} from "../controller/user.controller.js";
-import validate from "../middleware/validate.js";
-import userSchemaJoi from "../validation/user.js";
-import {
-    authIsAdminMiddleware,
-    authMiddleware,
-} from "../middleware/authMiddlewares.js";
-import {
     changePassword,
     forgotPassword,
     handleRefreshToken,
@@ -25,7 +10,21 @@ import {
     sendOtpResetPassword,
     verifyOtp,
 } from "../controller/auth.controller.js";
-import userAuth from "../middleware/userAuth.js";
+import {
+    createUser,
+    deleteUserById,
+    getAccountByRole,
+    getAllUser,
+    getUserById,
+    getUserDetail,
+    updateUserById,
+} from "../controller/user.controller.js";
+import {
+    authIsAdminMiddleware,
+    authMiddleware,
+} from "../middleware/authMiddlewares.js";
+import validate from "../middleware/validate.js";
+import userSchemaJoi from "../validation/user.js";
 
 const router = express.Router();
 
@@ -43,7 +42,7 @@ router.put(
 router.get("/admin/account/by-role", authIsAdminMiddleware, getAccountByRole);
 
 router.post("/login", loginUser);
-router.post("/logout", userAuth, logout);
+router.post("/logout", authMiddleware, logout);
 router.post("/forgot-password", forgotPassword);
 router.put("/reset-password", resetPassword);
 router.post("/refresh-token", handleRefreshToken);

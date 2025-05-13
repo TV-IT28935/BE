@@ -1,27 +1,27 @@
 import express from "express";
+import multer from "multer";
 import {
+    countProduct,
     createProduct,
     deleteProduct,
+    filterProducts,
     getAllProduct,
-    updateProduct,
-    getProductById,
     getAllProductByBrand,
-    countProduct,
-    searchByKeyword,
+    getAllProductWishList,
     getListHot,
+    getProductById,
     getRecommendationById,
     relateProduct,
+    searchByKeyword,
     toggleLikeProduct,
-    getAllProductWishList,
-    filterProducts,
+    updateProduct,
 } from "../controller/product.controller.js";
-import validate from "../middleware/validate.js";
-import { productSchemaJoi } from "../validation/product.js";
-import multer from "multer";
 import {
     authIsAdminMiddleware,
     authMiddleware,
 } from "../middleware/authMiddlewares.js";
+import validate from "../middleware/validate.js";
+import { productSchemaJoi } from "../validation/product.js";
 
 const upload = multer();
 
@@ -37,9 +37,19 @@ router.get("/recommendation", getRecommendationById);
 router.get("/list/hot", getListHot);
 router.get("/search", searchByKeyword);
 router.get("/count", countProduct);
-router.post("/create", upload.fields([{ name: "files" }]), createProduct);
-router.put("/modify", validate(productSchemaJoi), updateProduct);
-router.delete("/delete", deleteProduct);
+router.post(
+    "/create",
+    upload.fields([{ name: "files" }]),
+    authIsAdminMiddleware,
+    createProduct
+);
+router.put(
+    "/modify",
+    validate(productSchemaJoi),
+    authIsAdminMiddleware,
+    updateProduct
+);
+router.delete("/delete", authIsAdminMiddleware, deleteProduct);
 router.get("/:id", getProductById);
 
 export default router;

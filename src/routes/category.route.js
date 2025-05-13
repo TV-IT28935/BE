@@ -1,18 +1,15 @@
 import express from "express";
 import {
-    getAllCategories,
-    getCategoryById,
     createCategory,
-    updateCategory,
     deleteCategory,
+    getAllCategories,
     getCategoryAdmin,
+    getCategoryById,
+    updateCategory,
 } from "../controller/category.controller.js";
+import { authIsAdminMiddleware } from "../middleware/authMiddlewares.js";
 import validate from "../middleware/validate.js";
 import categorySchemaJoi from "../validation/category.js";
-import {
-    authIsAdminMiddleware,
-    authMiddleware,
-} from "../middleware/authMiddlewares.js";
 
 const router = express.Router();
 
