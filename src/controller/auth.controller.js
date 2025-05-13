@@ -281,15 +281,13 @@ const sendOtpResetPassword = async (req, res) => {
 };
 
 const handleRefreshToken = async (req, res) => {
-    const refreshToken = req.cookies.refreshToken;
+    const refreshToken = req.body.refreshToken;
     try {
         if (!refreshToken) {
-            throw new Error("No refresh token in cookies");
+            return errorResponse400(res, "Refresh Token het han");
         }
-        const user = await User.findOne({ refreshToken });
-        if (!user) {
-            throw new Error("Not refresh token present in db");
-        }
+        const decodedUser = jwt.verify(refreshToken, process.env.JWT_SECRET);
+        const user = await User.findById(decodedUser?.id);
         const accessToken = generateToken(user._id);
         return res.json({
             accessToken: accessToken,
