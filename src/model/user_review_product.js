@@ -3,9 +3,8 @@ import mongoose from "mongoose";
 const userReviewProductSchema = new mongoose.Schema(
     {
         user: { type: mongoose.Schema.Types.ObjectId, ref: "user" },
-        voucher: { type: mongoose.Schema.Types.ObjectId, ref: "voucher" },
-        usedAt: { type: Date },
-        expiresAt: { type: Date },
+        attribute: { type: mongoose.Schema.Types.ObjectId, ref: "attribute" },
+        review: { type: Number, default: 0 },
     },
     { timestamps: true }
 );

@@ -13,10 +13,15 @@ const orderSchema = new mongoose.Schema(
         payment: { type: String },
         shipDate: { type: Date },
         user: { type: mongoose.Schema.Types.ObjectId, ref: "user" },
-        orderStatus: [
-            { type: mongoose.Schema.Types.ObjectId, ref: "orderStatus" },
-        ],
-        vouchers: [{ type: mongoose.Schema.Types.ObjectId, ref: "voucher" }],
+        orderStatus: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "orderStatus",
+        },
+        voucher: { type: mongoose.Schema.Types.ObjectId, ref: "voucher" },
     },
     { timestamps: true }
 );
+
+const Order = mongoose.model("order", orderSchema);
+
+export default Order;

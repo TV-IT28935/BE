@@ -13,14 +13,13 @@ const getAllBrand = async (req, res) => {
     try {
         const { filter } = aqp(req.query);
         const { page, size, isActive } = filter;
+        const condition = {
+            isActive: true,
+        };
         const [brands, total] = await Promise.all([
             Brand.aggregate([
                 {
-                    $match: isActive
-                        ? {
-                              isActive: true,
-                          }
-                        : {},
+                    $match: condition,
                 },
                 {
                     $skip: page * size,
@@ -140,7 +139,67 @@ const deleteBrand = async (req, res) => {
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
-const getAllBrandAdmin = async (req, res) => {};
+
+const getAllBrandAdmin = async (req, res) => {
+    try {
+        const { filter } = aqp(req.query);
+        const { page, size, isActive } = filter;
+        const condition = {
+            isActive: true,
+        };
+        if (isActive) {
+            condition.isActive = isActive;
+        }
+        if (filter.name) {
+            condition.name = { $regex: filter.name, $options: "i" };
+        }
+        if (filter.deletedAt) {
+            condition.deletedAt = { $exists: false };
+        }
+        if (filter.createdAt) {
+            condition.createdAt = {
+                $gte: new Date(filter.createdAt[0]),
+                $lte: new Date(filter.createdAt[1]),
+            };
+        }
+        if (filter.updatedAt) {
+            condition.updatedAt = {
+                $gte: new Date(filter.updatedAt[0]),
+                $lte: new Date(filter.updatedAt[1]),
+            };
+        }
+        
+        const [brands, total] = await Promise.all([
+            Brand.aggregate([
+                {
+                    $match: {},
+                },
+                {
+                    $skip: page * size,
+                },
+                {
+                    $limit: size,
+                },
+            ]),
+            Brand.countDocuments({ isActive: true }),
+        ]);
+
+        return successResponseList(
+            res,
+            "Lấy danh sách thương hiệu thành công!",
+            brands,
+            {
+                total,
+                page: page,
+                size: size,
+                totalPages: Math.ceil(total / size),
+            }
+        );
+    } catch (error) {
+        return errorResponse500(res, "Lỗi server", error.message);
+    }
+};
+
 export {
     getAllBrand,
     getBrandById,

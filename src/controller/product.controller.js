@@ -497,9 +497,13 @@ export const getAllProductByBrand = async (req, res) => {
 };
 
 export const countProduct = async (req, res) => {};
+
 export const searchByKeyword = async (req, res) => {};
+
 export const getListHot = async (req, res) => {};
+
 export const getRecommendationById = async (req, res) => {};
+
 export const relateProduct = async (req, res) => {
     try {
         const { filter } = aqp(req.query);
@@ -701,8 +705,6 @@ export const toggleLikeProduct = async (req, res) => {
 
         await record.save();
 
-        console.log(liked, "liked");
-
         return successResponse(
             res,
             record.liked
@@ -809,14 +811,6 @@ export const filterProducts = async (req, res) => {
         if (brandIdsNew.length > 0) {
             filter.brand = { $in: brandIdsNew };
         }
-        // if (categoryIdsNew.length > 0) {
-        //     filter["categories._id"] = { $in: categoryIdsNew };
-        // }
-
-        // if(min !== undefined &&
-        //     max !== undefined) {
-
-        //     }
         const products = await Product.aggregate([
             {
                 $match: filter,
@@ -984,7 +978,7 @@ export const filterProducts = async (req, res) => {
     }
 };
 
-export const getAvgReivewProduct = async (req, res) => {
+export const getAvgReviewProduct = async (req, res) => {
     try {
         db.products.aggregate([
             // Bước 1: Join với attributes

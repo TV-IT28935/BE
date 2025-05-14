@@ -4,17 +4,17 @@ const salesSchema = new mongoose.Schema(
     {
         name: {
             type: String,
-            require: true,
+            required: true,
         },
 
         discount: {
             type: Number,
-            require: true,
+            required: true,
         },
         isActive: {
             type: Boolean,
             default: true,
-            require: true,
+            required: true,
         },
         description: {
             type: String,

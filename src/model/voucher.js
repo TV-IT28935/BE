@@ -4,19 +4,19 @@ const vouchersSchema = new mongoose.Schema(
     {
         code: {
             type: String,
-            require: true,
+            required: true,
         },
         name: {
             type: String,
-            require: true,
+            required: true,
         },
         count: {
             type: Number,
-            require: true,
+            required: true,
         },
         discount: {
             type: Number,
-            require: true,
+            required: true,
         },
         isActive: {
             type: Boolean,

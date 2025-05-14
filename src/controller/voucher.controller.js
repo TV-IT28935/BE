@@ -138,9 +138,7 @@ export const getVoucherByCode = async (req, res) => {
             return errorResponse400(res, "Voucher đã hết hạn");
         }
 
-        console.log(voucher.count, "xxxxxxxx");
-
-        if (voucher?.count <= 0) {
+        if (voucher?.count && voucher.count <= 0) {
             return errorResponse400(res, "Voucher đã hết lượt sử dụng");
         }
 
