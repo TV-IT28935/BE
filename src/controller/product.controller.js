@@ -971,3 +971,80 @@ export const filterProducts = async (req, res) => {
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
+
+export const getAvgReivewProduct = async (req, res) => {
+    try {
+        db.products.aggregate([
+            // Bước 1: Join với attributes
+            {
+                $lookup: {
+                    from: "attributes",
+                    localField: "_id",
+                    foreignField: "productId",
+                    as: "attributes",
+                },
+            },
+            // Bước 2: Unwind attributes
+            { $unwind: "$attributes" },
+
+            // Bước 3: Join với user_review_attribute theo attributeId
+            {
+                $lookup: {
+                    from: "user_review_attribute",
+                    localField: "attributes._id",
+                    foreignField: "attributeId",
+                    as: "reviews",
+                },
+            },
+            // Bước 4: Unwind reviews
+            { $unwind: "$reviews" },
+
+            // Bước 5: Nhóm lại theo attributeId để tính avgReviewAttribute
+            {
+                $group: {
+                    _id: {
+                        productId: "$_id",
+                        attributeId: "$attributes._id",
+                    },
+                    avgReviewAttribute: { $avg: "$reviews.review" },
+                },
+            },
+
+            // Bước 6: Nhóm lại theo productId để tính avgReviewProduct
+            {
+                $group: {
+                    _id: "$_id.productId",
+                    avgReviewProduct: { $avg: "$avgReviewAttribute" },
+                },
+            },
+
+            // Bước 7: Join lại với products để lấy full thông tin sản phẩm
+            {
+                $lookup: {
+                    from: "products",
+                    localField: "_id",
+                    foreignField: "_id",
+                    as: "product",
+                },
+            },
+            { $unwind: "$product" },
+
+            // Bước 8: Merge kết quả
+            {
+                $replaceRoot: {
+                    newRoot: {
+                        $mergeObjects: [
+                            "$product",
+                            { avgReviewProduct: "$avgReviewProduct" },
+                        ],
+                    },
+                },
+            },
+        ]);
+    } catch (error) {
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
+        return errorResponse500(res, "Lỗi server", error.message);
+    }
+};
