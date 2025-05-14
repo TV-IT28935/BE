@@ -9,7 +9,7 @@ import {
 } from "../controller/category.controller.js";
 import { authIsAdminMiddleware } from "../middleware/authMiddlewares.js";
 import validate from "../middleware/validate.js";
-import categorySchemaJoi from "../validation/category.js";
+import categorySchemaJoi from "../validation/category.validation.js";
 
 const router = express.Router();
 

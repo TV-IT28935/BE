@@ -1,6 +1,5 @@
 import aqp from "api-query-params";
 import Sale from "../model/sale.js";
-import { paginateModel } from "../utils/paginateModel.js";
 import validateMongoDbId from "../utils/validateMongodbId.js";
 import {
     errorResponse400,

@@ -3,6 +3,8 @@ import { generateRefreshToken } from "../config/refreshToken.js";
 import User from "../model/user.js";
 import bcrypt from "bcrypt";
 import generator from "generate-password";
+import jwt from "jsonwebtoken";
+
 import {
     errorResponse400,
     errorResponse500,
@@ -35,23 +37,6 @@ const loginUser = async (req, res) => {
         }
 
         await sendOtp(res, existingUser);
-
-        // const refreshToken = generateRefreshToken(existingUser._id);
-        // const accessToken = generateToken(existingUser._id);
-
-        // res.cookie("access_token", accessToken, {
-        //     httpOnly: true,
-        //     secure: false,
-        //     maxAge: 24 * 60 * 60 * 1000,
-        // });
-
-        // res.cookie("refresh_token", refreshToken, {
-        //     httpOnly: true,
-        //     secure: false,
-        //     maxAge: 7 * 24 * 60 * 60 * 1000,
-        // });
-
-        return successResponse(res, "Gửi mã OTP thành công!");
     } catch (error) {
         return errorResponse500(res, error.message);
     }
@@ -75,6 +60,8 @@ const sendOtp = async (res, existingUser) => {
         };
 
         await transporter.sendMail(mailOptions);
+
+        return successResponse(res, "Gửi mã OTP thành công!", otpExpire);
     } catch (error) {
         return errorResponse500(res, error.message);
     }
@@ -289,9 +276,7 @@ const handleRefreshToken = async (req, res) => {
         const decodedUser = jwt.verify(refreshToken, process.env.JWT_SECRET);
         const user = await User.findById(decodedUser?.id);
         const accessToken = generateToken(user._id);
-        return res.json({
-            accessToken: accessToken,
-        });
+        return successResponse(res, "Refresh token thành công!", accessToken);
     } catch (error) {
         return errorResponse500(res, error.message);
     }

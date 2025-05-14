@@ -21,7 +21,7 @@ import {
     authMiddleware,
 } from "../middleware/authMiddlewares.js";
 import validate from "../middleware/validate.js";
-import { productSchemaJoi } from "../validation/product.js";
+import { productSchemaJoi } from "../validation/product.validation.js";
 
 const upload = multer();
 

@@ -16,9 +16,9 @@ import mongoose from "mongoose";
 
 const createUser = async (req, res) => {
     try {
-        const { username, password } = req.body;
+        const { username, password, email } = req.body;
         const existingUser = await UserDetail.findOne({
-            email: username,
+            email,
             username,
         });
         if (existingUser) {
@@ -69,38 +69,43 @@ const getAllUser = async (req, res) => {
         }
 
         const [users, total] = await Promise.all([
-            UserDetail.aggregate([
+            User.aggregate([
                 {
                     $match: matchFilter,
                 },
                 {
                     $lookup: {
-                        from: "users",
-                        localField: "userId",
-                        foreignField: "_id",
-                        as: "user",
+                        from: "userdetails",
+                        localField: "_id",
+                        foreignField: "userId",
+                        as: "userDetail",
                     },
                 },
                 {
-                    path: "$user",
-                    preserveNullAndEmptyArrays: true,
+                    $unwind: {
+                        path: "$userDetail",
+                        preserveNullAndEmptyArrays: true,
+                    },
                 },
                 {
                     $project: {
+                        _id: 1,
                         email: 1,
                         username: 1,
-                        avatar: 1,
-                        fullName: 1,
-                        phone: 1,
-                        gender: 1,
-                        address: 1,
-                        birthday: 1,
-                        user: {
-                            isActive: 1,
-                            role: 1,
+                        role: 1,
+                        isActive: 1,
+                        userDetail: {
+                            _id: 1,
+                            birthday: 1,
+                            avatar: 1,
+                            fullName: 1,
+                            phone: 1,
+                            gender: 1,
+                            address: 1,
                         },
                     },
                 },
+                { $sort: { createdAt: -1 } },
                 { $skip: page * size },
                 { $limit: size },
             ]),
@@ -134,15 +139,15 @@ const getUserById = async (req, res) => {
         const user = await User.findOne({
             _id: id,
         }).select(
-            "-updatedAt -__v -createdAt -verifyOtp -verifyOtpExpireAt -resetOtp -resetOtpExpireAt -isAccountVerified"
+            "-updatedAt -__v -createdAt -verifyOtp -verifyOtpExpireAt -resetOtp -resetOtpExpireAt -isAccountVerified -password"
         );
 
-        console.log("xxxxxxxxx");
         const userDetail = await UserDetail.findOne({
             userId: id,
         }).select("-updatedAt -__v -createdAt");
 
         const {
+            _id,
             email,
             username,
             avatar,
@@ -167,6 +172,8 @@ const getUserById = async (req, res) => {
             gender,
             address,
             birthday,
+            _id: userDetail._id,
+            userId: user.toObject()._id,
         });
     } catch (error) {
         if (error instanceof ErrorCustom) {
@@ -206,27 +213,30 @@ const deleteUserById = async (req, res) => {
 
 const updateUserById = async (req, res) => {
     try {
+        const { isActive, ...rest } = req.body;
+        console.log(rest, "restxxxxxxxxx");
         const [updateUserDetail, updateUser] = await Promise.all([
             UserDetail.findByIdAndUpdate(
                 {
-                    userId: req.body._id,
+                    _id: new mongoose.Types.ObjectId(req.body._id),
                 },
                 {
-                    ...req.body,
+                    ...rest,
                 },
                 { upsert: true }
             ),
             User.findByIdAndUpdate(
                 {
-                    _id: req.body._id,
+                    _id: new mongoose.Types.ObjectId(req.body.userId),
                 },
                 {
-                    username: req.body.username,
                     email: req.body.email,
+                    isActive: isActive,
                 },
                 { upsert: true }
             ),
         ]);
+
         if (updateUserDetail && updateUser) {
             return successResponse(res, "Thành công!");
         } else {
@@ -244,25 +254,19 @@ const getAccountByRole = async (req, res) => {
     try {
         const { filter } = aqp(req.query);
         const { page, size, isActive, roleName } = filter;
+        const matchCondition = {};
+        if (roleName) {
+            matchCondition.role = roleName;
+        }
 
+        if (typeof isActive === "boolean") {
+            matchCondition.isActive = isActive;
+        }
         const result = await User.aggregate([
-            {
-                $match: {
-                    $and: [
-                        isActive
-                            ? {
-                                  isActive: isActive,
-                              }
-                            : {},
-                        {
-                            role: roleName,
-                        },
-                    ],
-                },
-            },
+            { $match: matchCondition },
             {
                 $lookup: {
-                    from: "userDetails",
+                    from: "userdetails",
                     localField: "_id",
                     foreignField: "userId",
                     as: "userDetail",
@@ -275,11 +279,26 @@ const getAccountByRole = async (req, res) => {
                 },
             },
             {
-                $skip: page * size,
+                $project: {
+                    _id: 1,
+                    email: 1,
+                    username: 1,
+                    role: 1,
+                    isActive: 1,
+                    userDetail: {
+                        _id: 1,
+                        birthday: 1,
+                        avatar: 1,
+                        fullName: 1,
+                        phone: 1,
+                        gender: 1,
+                        address: 1,
+                    },
+                },
             },
-            {
-                $limit: size,
-            },
+            { $sort: { createdAt: -1 } },
+            { $skip: page * size },
+            { $limit: size },
         ]);
 
         const total = await User.countDocuments([
@@ -307,6 +326,59 @@ const getAccountByRole = async (req, res) => {
     }
 };
 
+const createAccount = async (req, res) => {
+    try {
+        const {
+            username,
+            email,
+            password,
+            avatar,
+            fullName,
+            phone,
+            gender,
+            address,
+            birthday,
+        } = req.body;
+        const existingUser = await UserDetail.findOne({
+            email,
+            username,
+        });
+        if (existingUser) {
+            return errorResponse400(res, "Người dùng đã tồn tại");
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const user = new User({
+            username,
+            email,
+            password: hashedPassword,
+        });
+
+        await user.save();
+        const userDetail = new UserDetail({
+            username,
+            email,
+            avatar,
+            fullName,
+            phone,
+            gender,
+            address,
+            birthday,
+            userId: user._id,
+        });
+
+        await userDetail.save();
+
+        return successResponse(res, "Tạo người dùng thành công!");
+    } catch (error) {
+        return errorResponse500(res, error.message);
+    }
+};
+
+const getTotalPage = async (req, res) => {};
+const countAccount = async (req, res) => {};
+
 export {
     createUser,
     getAllUser,
@@ -315,4 +387,7 @@ export {
     updateUserById,
     getUserDetail,
     getAccountByRole,
+    createAccount,
+    getTotalPage,
+    countAccount,
 };
