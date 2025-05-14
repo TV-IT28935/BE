@@ -800,6 +800,7 @@ export const filterProducts = async (req, res) => {
     try {
         const { brandIds, categoryIds, max, min, size, page, userId } =
             req.body;
+
         const brandIdsNew = brandIds.map(
             (id) => new mongoose.Types.ObjectId(id)
         );
@@ -815,7 +816,6 @@ export const filterProducts = async (req, res) => {
             {
                 $match: filter,
             },
-            { $sort: { createdAt: -1 } },
             {
                 $lookup: {
                     from: "brands",
@@ -824,6 +824,7 @@ export const filterProducts = async (req, res) => {
                     as: "brand",
                 },
             },
+
             {
                 $unwind: {
                     path: "$brand",
@@ -935,6 +936,7 @@ export const filterProducts = async (req, res) => {
                     },
                 },
             },
+            { $sort: { createdAt: -1 } },
         ]);
 
         let result = [];
@@ -958,12 +960,12 @@ export const filterProducts = async (req, res) => {
         }
 
         result = products.filter((product) =>
-            product.attributes.some((attr) => {
+            product.attributes.every((attr) => {
                 const finalPrice =
                     attr.price - (attr.price * product.sale.discount) / 100;
 
-                const isMinValid = min ? finalPrice > min : true;
-                const isMaxValid = max ? finalPrice < max : true;
+                const isMinValid = !!min ? finalPrice > min : true;
+                const isMaxValid = !!max ? finalPrice < max : true;
 
                 return isMinValid && isMaxValid;
             })

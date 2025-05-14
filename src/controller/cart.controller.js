@@ -15,9 +15,11 @@ const modifyCartItem = async (req, res) => {
         const { attributeId, quantity, lastPrice } = req.body;
         const user = req.user;
         validateMongoDbId(attributeId);
+
         const cartAttribute = await CartItem.findOne({
             userId: user._id,
             attributeId: new mongoose.Types.ObjectId(attributeId),
+            isActive: true,
         });
 
         if (!cartAttribute) {
@@ -96,6 +98,7 @@ const isEnoughCartItem = async (req, res) => {
         const cartAttribute = await CartItem.findOne({
             userId: user._id,
             attributeId: new mongoose.Types.ObjectId(id),
+            isActive: true,
         });
 
         console.log(cartAttribute, "cartAttribute");
@@ -131,6 +134,7 @@ const getCartItemByAccountId = async (req, res) => {
             {
                 $match: {
                     userId: new mongoose.Types.ObjectId(id),
+                    isActive: true,
                 },
             },
             {
@@ -174,6 +178,7 @@ const getCartItemByAccountId = async (req, res) => {
                     attribute: {
                         _id: 1,
                         size: 1,
+                        price: 1,
                     },
                     product: {
                         _id: 1,

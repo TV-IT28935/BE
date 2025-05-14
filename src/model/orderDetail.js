@@ -1,21 +1,17 @@
 import mongoose from "mongoose";
-import Order from "./order";
-import Attribute from "./attribute";
 
 const orderDetailSchema = new mongoose.Schema(
     {
         originPrice: {
-            type: String,
+            type: Number,
             required: true,
         },
-
         quantity: {
             type: Number,
             required: true,
         },
         sellPrice: {
-            type: Boolean,
-            default: true,
+            type: Number,
             required: true,
         },
         order: { type: mongoose.Schema.Types.ObjectId, ref: "order" },

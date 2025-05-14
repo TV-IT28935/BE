@@ -27,10 +27,10 @@ import { authMiddleware } from "../middleware/authMiddlewares.js";
 const router = express.Router();
 
 router.post("/create", authMiddleware, createOrder);
-router.post("/", authMiddleware, getOrderById);
-router.post("/order-detail", authMiddleware, getOrderDetailByOrderId);
-router.post("/order-status", authMiddleware, getAllOrderStatus);
-router.post("/list", authMiddleware, getAllOrder);
+router.get("/", authMiddleware, getOrderById);
+router.get("/order-detail", authMiddleware, getOrderDetailByOrderId);
+router.get("/order-status", authMiddleware, getAllOrderStatus);
+router.get("/list", authMiddleware, getAllOrder);
 router.post("/cancel", authMiddleware, cancelOrder);
 
 // admin

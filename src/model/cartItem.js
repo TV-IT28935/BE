@@ -12,7 +12,6 @@ const cartItemSchema = new mongoose.Schema(
         },
         isActive: {
             type: Boolean,
-            require: true,
             default: true,
         },
         userId: { type: mongoose.Schema.Types.ObjectId, ref: "user" },
