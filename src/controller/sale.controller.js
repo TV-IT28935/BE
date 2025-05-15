@@ -13,10 +13,32 @@ import { ErrorCustom } from "../helper/ErrorCustom.js";
 export const getAllSale = async (req, res) => {
     try {
         const { filter } = aqp(req.query);
-        const { page, size, isActive } = filter;
+        const { page, size } = filter;
+        const { query, search } = req.query;
+
+        let matchFilter = {};
+        let sort = { createdAt: -1 };
+
+        if (query) {
+            let [key, value] = query.split("-");
+
+            if (key === "name") {
+                sort = { name: value === "asc" ? 1 : -1 };
+            } else {
+                if (key && value) {
+                    matchFilter[key] = value === "true" ? true : false;
+                }
+            }
+        }
+
+        if (search) {
+            matchFilter["$or"] = [{ name: { $regex: search, $options: "i" } }];
+        }
 
         const [sales, total] = await Promise.all([
             Sale.aggregate([
+                { $match: matchFilter },
+                { $sort: sort },
                 {
                     $skip: page * size,
                 },
@@ -24,7 +46,7 @@ export const getAllSale = async (req, res) => {
                     $limit: size,
                 },
             ]),
-            Sale.countDocuments({ isActive: true }),
+            Sale.countDocuments(matchFilter),
         ]);
 
         console.log(sales, "sales");

@@ -43,6 +43,9 @@ const getAllBrand = async (req, res) => {
             }
         );
     } catch (error) {
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
@@ -80,6 +83,9 @@ const createBrand = async (req, res) => {
         });
         return successResponse(res, "Thêm thương hiệu thành công!", brand);
     } catch (error) {
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
@@ -143,37 +149,34 @@ const deleteBrand = async (req, res) => {
 const getAllBrandAdmin = async (req, res) => {
     try {
         const { filter } = aqp(req.query);
-        const { page, size, isActive } = filter;
-        const condition = {
-            isActive: true,
-        };
-        if (isActive) {
-            condition.isActive = isActive;
+        const { page, size } = filter;
+        const { query, search } = req.query;
+
+        let matchFilter = {};
+        let sort = { createdAt: -1 };
+
+        if (query) {
+            let [key, value] = query.split("-");
+
+            if (key === "name") {
+                sort = { name: value === "asc" ? 1 : -1 };
+            } else {
+                if (key && value) {
+                    matchFilter[key] = value === "true" ? true : false;
+                }
+            }
         }
-        if (filter.name) {
-            condition.name = { $regex: filter.name, $options: "i" };
+
+        if (search) {
+            matchFilter["$or"] = [{ name: { $regex: search, $options: "i" } }];
         }
-        if (filter.deletedAt) {
-            condition.deletedAt = { $exists: false };
-        }
-        if (filter.createdAt) {
-            condition.createdAt = {
-                $gte: new Date(filter.createdAt[0]),
-                $lte: new Date(filter.createdAt[1]),
-            };
-        }
-        if (filter.updatedAt) {
-            condition.updatedAt = {
-                $gte: new Date(filter.updatedAt[0]),
-                $lte: new Date(filter.updatedAt[1]),
-            };
-        }
-        
+
         const [brands, total] = await Promise.all([
             Brand.aggregate([
                 {
-                    $match: {},
+                    $match: matchFilter,
                 },
+                { $sort: sort },
                 {
                     $skip: page * size,
                 },
@@ -181,7 +184,7 @@ const getAllBrandAdmin = async (req, res) => {
                     $limit: size,
                 },
             ]),
-            Brand.countDocuments({ isActive: true }),
+            Brand.countDocuments(matchFilter),
         ]);
 
         return successResponseList(
@@ -196,6 +199,9 @@ const getAllBrandAdmin = async (req, res) => {
             }
         );
     } catch (error) {
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };

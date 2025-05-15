@@ -12,14 +12,34 @@ import validateMongoDbId from "../utils/validateMongodbId.js";
 export const getAllVouchers = async (req, res) => {
     try {
         const { filter } = aqp(req.query);
-        const { page, size, isActive } = filter;
+        const { page, size } = filter;
+        const { query, search } = req.query;
+
+        let matchFilter = {};
+        let sort = { createdAt: -1 };
+
+        if (query) {
+            let [key, value] = query.split("-");
+
+            if (key === "code") {
+                sort = { code: value === "asc" ? 1 : -1 };
+            } else {
+                if (key && value) {
+                    matchFilter[key] = value === "true" ? true : false;
+                }
+            }
+        }
+
+        if (search) {
+            matchFilter["$or"] = [{ code: { $regex: search, $options: "i" } }];
+        }
+
         const [vouchers, total] = await Promise.all([
             Voucher.aggregate([
                 {
-                    $match: {
-                        isActive: true,
-                    },
+                    $match: matchFilter,
                 },
+                { $sort: sort },
                 {
                     $skip: page * size,
                 },
@@ -27,7 +47,7 @@ export const getAllVouchers = async (req, res) => {
                     $limit: size,
                 },
             ]),
-            Voucher.countDocuments({ isActive: true }),
+            Voucher.countDocuments(matchFilter),
         ]);
         return successResponseList(
             res,

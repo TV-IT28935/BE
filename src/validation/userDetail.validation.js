@@ -45,7 +45,7 @@ const userDetailSchemaJoi = Joi.object({
         "boolean.base": "Trạng thái hoạt động phải là kiểu boolean.",
         "any.required": "Trường trạng thái hoạt động là bắt buộc.",
     }),
-    password: Joi.string().optional().min(3).max(60).required().messages({
+    password: Joi.string().optional().min(3).max(60).messages({
         "string.min": "Mật khẩu phải có ít nhất 3 ký tự.",
         "string.max": "Mật khẩu không được vượt quá 60 ký tự.",
         "any.required": "Mật khẩu là bắt buộc.",

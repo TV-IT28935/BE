@@ -383,26 +383,42 @@ export const deleteProduct = async (req, res) => {
 export const getAllProductByBrand = async (req, res) => {
     try {
         const { filter } = aqp(req.query);
-        let { page = 0, size = 10, isActive = true, brandId } = filter;
+        let { page = 0, size = 10, brandId } = filter;
+        const { query, search } = req.query;
 
         page = parseInt(page);
         size = parseInt(size);
 
-        const activeFilter =
-            isActive !== undefined
-                ? { isActive: isActive === "true" || isActive === true }
-                : {};
-
-        const matchFilter = {
-            ...activeFilter,
+        let matchFilter = {};
+        matchFilter = {
             ...(brandId && mongoose.Types.ObjectId.isValid(brandId)
                 ? { brand: new mongoose.Types.ObjectId(brandId) }
                 : {}),
         };
+        let sort = { createdAt: -1 };
+
+        if (query) {
+            let [key, value] = query.split("-");
+
+            if (key === "name") {
+                sort = { name: value === "asc" ? 1 : -1 };
+            } else {
+                if (key && value) {
+                    matchFilter[key] = value === "true" ? true : false;
+                }
+            }
+        }
+
+        if (search) {
+            matchFilter["$or"] = [
+                { name: { $regex: search, $options: "i" } },
+                { code: { $regex: search, $options: "i" } },
+            ];
+        }
 
         const result = await Product.aggregate([
             { $match: matchFilter },
-            { $sort: { createdAt: -1 } },
+            { $sort: sort },
             {
                 $lookup: {
                     from: "brands",
@@ -498,10 +514,7 @@ export const getAllProductByBrand = async (req, res) => {
 
 export const countProduct = async (req, res) => {
     try {
-        
-    } catch (error) {
-        
-    }
+    } catch (error) {}
 };
 
 export const searchByKeyword = async (req, res) => {};

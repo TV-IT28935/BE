@@ -12,6 +12,7 @@ import Order from "../model/order.js";
 import { ErrorCustom } from "../helper/ErrorCustom.js";
 import CartItem from "../model/cartItem.js";
 import Attribute from "../model/attribute.js";
+import aqp from "api-query-params";
 
 const createOrder = async (req, res) => {
     const session = await mongoose.startSession();
@@ -239,7 +240,115 @@ const updateCancel = async (req, res) => {};
 const updateProcess = async (req, res) => {};
 const updateShip = async (req, res) => {};
 const updateSuccess = async (req, res) => {};
-const getAllOrderAndPagination = async (req, res) => {};
+const getAllOrderAndPagination = async (req, res) => {
+    try {
+        const { filter } = aqp(req.query);
+        const { page, size, status, payment } = filter;
+
+        let matchFilter = {};
+
+        if (status !== "ALL") {
+            matchFilter["orderStatus.code"] = status;
+        }
+        if (payment !== "ALL") {
+            matchFilter["payment"] = payment;
+        }
+
+        const result = await Order.aggregate([
+            {
+                $lookup: {
+                    from: "orderstatuses",
+                    localField: "orderStatus",
+                    foreignField: "_id",
+                    as: "orderStatus",
+                },
+            },
+            {
+                $unwind: "$orderStatus",
+            },
+
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "user",
+                    foreignField: "_id",
+                    as: "user",
+                },
+            },
+            {
+                $unwind: "$user",
+            },
+
+            {
+                $match: matchFilter,
+            },
+
+            {
+                $sort: { createdAt: -1 },
+            },
+            {
+                $project: {
+                    _id: 1,
+                    code: 1,
+                    address: 1,
+                    fullName: 1,
+                    phone: 1,
+                    email: 1,
+                    note: 1,
+                    total: 1,
+                    isPending: 1,
+                    payment: 1,
+                    user: {
+                        _id: 1,
+                        email: 1,
+                        username: 1,
+                    },
+                    orderStatus: {
+                        _id: 1,
+                        name: 1,
+                        code: 1,
+                    },
+                    voucher: 1,
+                    createdAt: 1,
+                },
+            },
+            {
+                $facet: {
+                    data: [
+                        { $sort: { createdAt: -1 } },
+                        { $skip: +page * +size },
+                        { $limit: +size },
+                    ],
+                    total: [{ $count: "count" }],
+                },
+            },
+        ]);
+
+        const orders = result[0]?.data || [];
+        const total = result[0]?.total[0]?.count || 0;
+
+        if (!orders) {
+            return errorResponse400(res, "Không tìm thấy đơn hàng");
+        }
+
+        return successResponseList(
+            res,
+            "Lấy danh sách đơn hàng thành công",
+            orders,
+            {
+                total,
+                page: page,
+                size: size,
+                totalPages: Math.ceil(total / size),
+            }
+        );
+    } catch (error) {
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
+        return errorResponse500(res, "Lỗi server", error.message);
+    }
+};
 const getOrderByOrderStatusBetweenDate = async (req, res) => {};
 const getAllOrdersByPayment = async (req, res) => {};
 

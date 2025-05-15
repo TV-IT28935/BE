@@ -57,15 +57,34 @@ const createUser = async (req, res) => {
 
 const getAllUser = async (req, res) => {
     try {
-        const { filter } = aqp(req.query);
-        let { page = 0, size = 10, isActive } = filter;
+        let { page = 0, size = 10, search, query, roleName } = req.query;
 
-        page = parseInt(page);
-        size = parseInt(size);
+        let matchFilter = {};
+        let sort = { createdAt: -1 };
 
-        const matchFilter = {};
-        if (isActive !== undefined) {
-            matchFilter.isActive = isActive === "true" || isActive === true;
+        if (roleName) {
+            if (roleName !== "ALL") {
+                matchFilter.role = roleName;
+            }
+        }
+        if (query) {
+            let [key, value] = query.split("-");
+
+            if (key === "username") {
+                sort = { username: value === "asc" ? 1 : -1 };
+            } else {
+                if (key && value) {
+                    matchFilter[key] = value === "true" ? true : false;
+                }
+            }
+        }
+
+        if (search) {
+            matchFilter["$or"] = [
+                { email: { $regex: search, $options: "i" } },
+                { username: { $regex: search, $options: "i" } },
+                { fullName: { $regex: search, $options: "i" } },
+            ];
         }
 
         const [users, total] = await Promise.all([
@@ -73,6 +92,8 @@ const getAllUser = async (req, res) => {
                 {
                     $match: matchFilter,
                 },
+                { $sort: sort },
+
                 {
                     $lookup: {
                         from: "userdetails",
@@ -105,11 +126,10 @@ const getAllUser = async (req, res) => {
                         },
                     },
                 },
-                { $sort: { createdAt: -1 } },
-                { $skip: page * size },
-                { $limit: size },
+                { $skip: +page * +size },
+                { $limit: +size },
             ]),
-            UserDetail.countDocuments(matchFilter),
+            User.countDocuments(matchFilter),
         ]);
 
         return successResponseList(
@@ -214,7 +234,6 @@ const deleteUserById = async (req, res) => {
 const updateUserById = async (req, res) => {
     try {
         const { isActive, ...rest } = req.body;
-        console.log(rest, "restxxxxxxxxx");
         const [updateUserDetail, updateUser] = await Promise.all([
             UserDetail.findByIdAndUpdate(
                 {

@@ -22,7 +22,10 @@ import {
     updateShip,
     updateSuccess,
 } from "../controller/order.controller.js";
-import { authMiddleware } from "../middleware/authMiddlewares.js";
+import {
+    authIsAdminMiddleware,
+    authMiddleware,
+} from "../middleware/authMiddlewares.js";
 
 const router = express.Router();
 
@@ -34,23 +37,31 @@ router.get("/list", authMiddleware, getAllOrder);
 router.post("/cancel", authMiddleware, cancelOrder);
 
 // admin
-router.post("/list/count", authMiddleware, countOrderByName);
-router.post("/count", authMiddleware, countOrder);
-router.post("/synthesis/year", authMiddleware, reportAmountYear);
-router.post("/synthesis/product", authMiddleware, reportByProduct);
-router.post(
+router.get("/list/count", authIsAdminMiddleware, countOrderByName);
+router.get("/count", authIsAdminMiddleware, countOrder);
+router.get("/synthesis/year", authIsAdminMiddleware, reportAmountYear);
+router.get("/synthesis/product", authIsAdminMiddleware, reportByProduct);
+router.get(
     "/synthesis/order-by-year-month",
-    authMiddleware,
+    authIsAdminMiddleware,
     getOrderByOrderStatusAndYearAndMonth
 );
-router.post("/synthesis/order-by-product", authMiddleware, getOrderByProduct);
-router.get("/synthesis/amount-month", authMiddleware, reportAmountMonth);
-router.get("/update", authMiddleware, updateOrder);
-router.post("/admin/cancel-order", authMiddleware, updateCancel);
-router.post("/admin/update-process", authMiddleware, updateProcess);
-router.post("/admin/update-shipment", authMiddleware, updateShip);
-router.get("/", authMiddleware, updateSuccess);
-router.get("/by-account", authMiddleware, getAllOrderAndPagination);
-router.post("/remove", authMiddleware, getOrderByOrderStatusBetweenDate);
-router.post("/remove", authMiddleware, getAllOrdersByPayment);
+router.get(
+    "/synthesis/order-by-product",
+    authIsAdminMiddleware,
+    getOrderByProduct
+);
+router.get("/synthesis/amount-month", authIsAdminMiddleware, reportAmountMonth);
+router.post("/update", authIsAdminMiddleware, updateOrder);
+router.post("/admin/cancel-order", authIsAdminMiddleware, updateCancel);
+router.post("/admin/update-process", authIsAdminMiddleware, updateProcess);
+router.post("/admin/update-shipment", authIsAdminMiddleware, updateShip);
+router.post("/admin/update-success", authIsAdminMiddleware, updateSuccess);
+router.get("/page-admin", authIsAdminMiddleware, getAllOrderAndPagination);
+router.get(
+    "/page-orders-between-date",
+    authIsAdminMiddleware,
+    getOrderByOrderStatusBetweenDate
+);
+router.get("/payment", authIsAdminMiddleware, getAllOrdersByPayment);
 export default router;
