@@ -496,7 +496,13 @@ export const getAllProductByBrand = async (req, res) => {
     }
 };
 
-export const countProduct = async (req, res) => {};
+export const countProduct = async (req, res) => {
+    try {
+        
+    } catch (error) {
+        
+    }
+};
 
 export const searchByKeyword = async (req, res) => {};
 
