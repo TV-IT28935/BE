@@ -14,7 +14,7 @@ import brandRouter from "./src/routes/brand.route.js";
 import attributeRouter from "./src/routes/attribute.route.js";
 import cartRouter from "./src/routes/cart.route.js";
 import orderRouter from "./src/routes/order.route.js";
-
+import shipmentRouter from "./src/routes/shipment.route.js";
 dotenv.config();
 
 const PORT = process.env.PORT || 8000;
@@ -41,6 +41,7 @@ app.use("/api/v1/brand", brandRouter);
 app.use("/api/v1/attribute", attributeRouter);
 app.use("/api/v1/cart", cartRouter);
 app.use("/api/v1/order", orderRouter);
+app.use("/api/v1/shipment", shipmentRouter);
 
 const startServer = async () => {
     try {

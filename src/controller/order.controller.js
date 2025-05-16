@@ -127,10 +127,19 @@ const createOrder = async (req, res) => {
 const getOrderById = async (req, res) => {
     try {
         const { id } = req.query;
-        const order = await Order.findById({ _id: id })
-            .populate("orderStatus")
-            .populate("user")
-            .populate("voucher");
+        const order = await Order.findById(id)
+            .populate({
+                path: "orderStatus",
+                select: "_id name code",
+            })
+            .populate({
+                path: "user",
+                select: "_id email username",
+            })
+            .populate({
+                path: "voucher",
+                select: "_id code name discount",
+            });
 
         if (!order) {
             return errorResponse400(res, "Không tìm thấy đơn hàng");
@@ -149,8 +158,15 @@ const getOrderDetailByOrderId = async (req, res) => {
         const { orderId } = req.query;
 
         const orderDetail = await OrderDetail.find({ order: orderId })
-            .populate("attribute")
-            .populate("order");
+            .populate({
+                path: "attribute",
+                populate: {
+                    path: "product",
+                    select: "_id code name",
+                },
+            })
+            .populate("order")
+            .select("-__v -createdAt -updatedAt");
 
         if (!orderDetail) {
             return errorResponse400(res, "Không tìm thấy chi tiết đơn hàng");
@@ -200,8 +216,19 @@ const getAllOrder = async (req, res) => {
         console.log(filter, "filter");
 
         const orders = await Order.find(filter)
+            .populate({
+                path: "orderStatus",
+                select: "-isActive",
+            })
+            .populate({
+                path: "shipment",
+                select: "-isActive",
+            })
             .skip(page * size)
-            .limit(size);
+            .limit(size)
+            .sort({
+                createdAt: -1,
+            });
 
         if (!orders) {
             return errorResponse400(res, "Không tìm thấy đơn hàng");
@@ -232,18 +259,11 @@ const countOrderByName = async (req, res) => {};
 const countOrder = async (req, res) => {};
 const reportAmountYear = async (req, res) => {};
 const reportByProduct = async (req, res) => {};
-const getOrderByOrderStatusAndYearAndMonth = async (req, res) => {};
-const getOrderByProduct = async (req, res) => {};
-const reportAmountMonth = async (req, res) => {};
-const updateOrder = async (req, res) => {};
-const updateCancel = async (req, res) => {};
-const updateProcess = async (req, res) => {};
-const updateShip = async (req, res) => {};
-const updateSuccess = async (req, res) => {};
-const getAllOrderAndPagination = async (req, res) => {
+const getOrderByOrderStatusAndYearAndMonth = async (req, res) => {
     try {
         const { filter } = aqp(req.query);
         const { page, size, status, payment } = filter;
+        const { month, year } = req.query;
 
         let matchFilter = {};
 
@@ -252,6 +272,349 @@ const getAllOrderAndPagination = async (req, res) => {
         }
         if (payment !== "ALL") {
             matchFilter["payment"] = payment;
+        }
+
+        if (month && !year) {
+            matchFilter.$expr = { $eq: [{ $month: "$createdAt" }, month] };
+        }
+
+        if (year && !month) {
+            matchFilter.$expr = { $eq: [{ $year: "$createdAt" }, year] };
+        }
+
+        if (year && month) {
+            matchFilter.$expr = {
+                $and: [
+                    { $eq: [{ $year: "$createdAt" }, year] },
+                    { $eq: [{ $month: "$createdAt" }, month] },
+                ],
+            };
+        }
+
+        console.log(matchFilter, "matchFilter");
+
+        const result = await Order.aggregate([
+            {
+                $lookup: {
+                    from: "orderstatuses",
+                    localField: "orderStatus",
+                    foreignField: "_id",
+                    as: "orderStatus",
+                },
+            },
+            {
+                $unwind: "$orderStatus",
+            },
+
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "user",
+                    foreignField: "_id",
+                    as: "user",
+                },
+            },
+            {
+                $unwind: "$user",
+            },
+
+            {
+                $match: matchFilter,
+            },
+
+            {
+                $sort: { createdAt: -1 },
+            },
+            {
+                $project: {
+                    _id: 1,
+                    code: 1,
+                    address: 1,
+                    fullName: 1,
+                    phone: 1,
+                    email: 1,
+                    note: 1,
+                    total: 1,
+                    isPending: 1,
+                    payment: 1,
+                    user: {
+                        _id: 1,
+                        email: 1,
+                        username: 1,
+                    },
+                    orderStatus: {
+                        _id: 1,
+                        name: 1,
+                        code: 1,
+                    },
+                    voucher: 1,
+                    createdAt: 1,
+                },
+            },
+            {
+                $facet: {
+                    data: [
+                        { $sort: { createdAt: -1 } },
+                        { $skip: +page * +size },
+                        { $limit: +size },
+                    ],
+                    total: [{ $count: "count" }],
+                },
+            },
+        ]);
+
+        const orders = result[0]?.data || [];
+        const total = result[0]?.total[0]?.count || 0;
+
+        if (!orders) {
+            return errorResponse400(res, "Không tìm thấy đơn hàng");
+        }
+
+        return successResponseList(
+            res,
+            "Lấy danh sách đơn hàng thành công",
+            orders,
+            {
+                total,
+                page: page,
+                size: size,
+                totalPages: Math.ceil(total / size),
+            }
+        );
+    } catch (error) {
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
+        return errorResponse500(res, "Lỗi server", error.message);
+    }
+};
+const getOrderByProduct = async (req, res) => {};
+const reportAmountMonth = async (req, res) => {};
+const updateOrder = async (req, res) => {};
+const updateCancel = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const { id, status, shipDate, shipment, description } = req.body;
+
+        const [orders, orderStatus] = await Promise.all([
+            Order.aggregate([
+                { $match: { _id: new mongoose.Types.ObjectId(id) } },
+                {
+                    $lookup: {
+                        from: "orderdetails",
+                        localField: "_id",
+                        foreignField: "order",
+                        as: "orderDetails",
+                    },
+                },
+            ]).session(session),
+            OrderStatus.findOne({ code: status }).session(session),
+        ]);
+
+        const order = orders[0];
+        if (!order) {
+            await session.abortTransaction();
+            session.endSession();
+            return errorResponse400(res, "Đơn hàng không tồn tại!", false);
+        }
+
+        if (!orderStatus) {
+            await session.abortTransaction();
+            session.endSession();
+            return errorResponse400(
+                res,
+                "Trạng thái đơn hàng không tồn tại!",
+                false
+            );
+        }
+
+        for (const orderDetail of order.orderDetails) {
+            await Attribute.updateOne(
+                { _id: orderDetail.attribute },
+                { $inc: { stock: orderDetail.quantity } },
+                { session }
+            );
+        }
+
+        await Order.updateOne(
+            { _id: id },
+            {
+                orderStatus: orderStatus._id,
+                shipDate,
+                shipment,
+                updateAt: new Date(),
+                reason: description,
+            },
+            { session }
+        );
+
+        await session.commitTransaction();
+        session.endSession();
+
+        return successResponse(res, "Hủy đơn hàng thành công!", true);
+    } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
+
+        return errorResponse500(res, "Lỗi server", error.message);
+    }
+};
+
+const updateProcess = async (req, res) => {
+    try {
+        const { id, status } = req.body;
+
+        const [order, orderStatus] = await Promise.all([
+            await Order.findOne({
+                _id: id,
+            }),
+            await OrderStatus.findOne({
+                code: status,
+            }),
+        ]);
+
+        if (!order) {
+            return errorResponse400(res, "Đơn hàng không tồn tại!", false);
+        }
+
+        if (!orderStatus) {
+            return errorResponse400(
+                res,
+                "Trạng thái đơn hàng không tồn tại!",
+                false
+            );
+        }
+
+        await Order.updateOne(
+            {
+                _id: id,
+            },
+            {
+                ...order.toObject(),
+                orderStatus: orderStatus._id,
+                updateAt: new Date(),
+            }
+        );
+
+        console.log(order, orderStatus, "orderxxx");
+
+        return successResponse(res, "Cập nhật đơn hàng thành công!", true);
+    } catch (error) {
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
+        return errorResponse500(res, "Lỗi server", error.message);
+    }
+};
+const updateShip = async (req, res) => {
+    try {
+        const { id, status, shipDate, shipment } = req.body;
+
+        const [order, orderStatus] = await Promise.all([
+            await Order.findOne({
+                _id: id,
+            }),
+            await OrderStatus.findOne({
+                code: status,
+            }),
+        ]);
+
+        if (!order) {
+            return errorResponse400(res, "Đơn hàng không tồn tại!", false);
+        }
+
+        if (!orderStatus) {
+            return errorResponse400(
+                res,
+                "Trạng thái đơn hàng không tồn tại!",
+                false
+            );
+        }
+
+        await Order.updateOne(
+            {
+                _id: id,
+            },
+            {
+                ...order.toObject(),
+                orderStatus: orderStatus._id,
+                shipDate,
+                shipment,
+                updateAt: new Date(),
+            }
+        );
+
+        return successResponse(res, "Cập nhật đơn hàng thành công!", true);
+    } catch (error) {
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
+        return errorResponse500(res, "Lỗi server", error.message);
+    }
+};
+const updateSuccess = async (req, res) => {};
+const getAllOrderAndPagination = async (req, res) => {
+    try {
+        const { filter } = aqp(req.query);
+        const { page, size, status, payment } = filter;
+        const { from, to, month, year } = req.query;
+
+        console.log(filter, "filter");
+
+        let matchFilter = {};
+
+        if (status !== "ALL") {
+            matchFilter["orderStatus.code"] = status;
+        }
+        if (payment !== "ALL") {
+            matchFilter["payment"] = payment;
+        }
+
+        if (from && !to) {
+            const fromDate = new Date(from);
+            const startOfDay = new Date(fromDate.setHours(0, 0, 0, 0));
+            const endOfDay = new Date(fromDate.setHours(23, 59, 59, 999));
+
+            matchFilter["createdAt"] = {
+                $gte: startOfDay,
+                $lte: endOfDay,
+            };
+        }
+        if (to && !from) {
+            const date = new Date(to);
+            const startOfDay = new Date(date.setHours(0, 0, 0, 0));
+            const endOfDay = new Date(date.setHours(23, 59, 59, 999));
+
+            matchFilter["createdAt"] = {
+                $gte: startOfDay,
+                $lte: endOfDay,
+            };
+        }
+
+        if (from && to) {
+            const fromDate = new Date(from);
+            const toDate = new Date(to);
+
+            if (fromDate > toDate) {
+                return errorResponse400(
+                    res,
+                    "Ngày bắt đầu không được lớn hơn ngày kết thúc"
+                );
+            }
+
+            fromDate.setHours(0, 0, 0, 0);
+            toDate.setHours(23, 59, 59, 999);
+
+            matchFilter["createdAt"] = {
+                $gte: fromDate,
+                $lte: toDate,
+            };
         }
 
         const result = await Order.aggregate([

@@ -10,7 +10,7 @@ const orderSchema = new mongoose.Schema(
         note: { type: String },
         total: { type: Number, required: true },
         isPending: { type: Boolean, default: true },
-        shipment: { type: String },
+        shipment: { type: mongoose.Schema.Types.ObjectId, ref: "shipment" },
         payment: { type: String, required: true },
         shipDate: { type: Date },
         user: { type: mongoose.Schema.Types.ObjectId, ref: "user" },
@@ -19,6 +19,7 @@ const orderSchema = new mongoose.Schema(
             ref: "orderStatus",
         },
         voucher: { type: mongoose.Schema.Types.ObjectId, ref: "voucher" },
+        reason: { type: String },
     },
     { timestamps: true }
 );

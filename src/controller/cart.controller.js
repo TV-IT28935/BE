@@ -56,6 +56,7 @@ const modifyCartItemFromDetail = async (req, res) => {
         const cartAttribute = await CartItem.findOne({
             userId: user._id,
             attributeId: new mongoose.Types.ObjectId(attributeId),
+            isActive: true,
         });
 
         if (!cartAttribute) {
@@ -68,7 +69,7 @@ const modifyCartItemFromDetail = async (req, res) => {
                 createdAt: new Date(),
                 updatedAt: new Date(),
             });
-            return successResponse(res, "Đã thêm vào giỏ hàng");
+            return successResponse(res, "Đã thêm vào giỏ hàng", true);
         } else {
             const attribute = await Attribute.findById(attributeId);
             const newQuantity = cartAttribute.quantity + quantity;
