@@ -13,6 +13,51 @@ import { ErrorCustom } from "../helper/ErrorCustom.js";
 export const getAllSale = async (req, res) => {
     try {
         const { filter } = aqp(req.query);
+        const { page, size, isActive = true } = filter;
+        const { query, search } = req.query;
+
+        let matchFilter = {
+            isActive: isActive,
+        };
+        let sort = { createdAt: -1 };
+
+        const [sales, total] = await Promise.all([
+            Sale.aggregate([
+                { $match: matchFilter },
+                { $sort: sort },
+                {
+                    $skip: page * size,
+                },
+                {
+                    $limit: size,
+                },
+            ]),
+            Sale.countDocuments(matchFilter),
+        ]);
+
+        console.log(sales, "sales");
+
+        return successResponseList(
+            res,
+            "Lấy danh sách giảm giá thành công!",
+            sales,
+            {
+                total,
+                page: page,
+                size: size,
+                totalPages: Math.ceil(total / size),
+            }
+        );
+    } catch (error) {
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
+        return errorResponse500(res, "Lỗi server", error.message);
+    }
+};
+export const getAllSaleAdmin = async (req, res) => {
+    try {
+        const { filter } = aqp(req.query);
         const { page, size } = filter;
         const { query, search } = req.query;
 
@@ -63,6 +108,9 @@ export const getAllSale = async (req, res) => {
             }
         );
     } catch (error) {
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };

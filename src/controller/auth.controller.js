@@ -1,18 +1,17 @@
-import { generateToken } from "../config/jwtToken.js";
-import { generateRefreshToken } from "../config/refreshToken.js";
-import User from "../model/user.js";
 import bcrypt from "bcrypt";
 import generator from "generate-password";
 import jwt from "jsonwebtoken";
+import { generateToken } from "../config/jwtToken.js";
+import { generateRefreshToken } from "../config/refreshToken.js";
+import User from "../model/user.js";
 
+import transporter from "../config/nodeMailer.js";
+import generatePassword from "../utils/generatePassword.js";
 import {
     errorResponse400,
     errorResponse500,
     successResponse,
 } from "../utils/responseHandler.js";
-import transporter from "../config/nodeMailer.js";
-import generatePassword from "../utils/generatePassword.js";
-import UserDetail from "../model/userDetail.js";
 
 const loginUser = async (req, res) => {
     try {
@@ -283,12 +282,12 @@ const handleRefreshToken = async (req, res) => {
 };
 
 export {
+    changePassword,
+    forgotPassword,
+    handleRefreshToken,
     loginUser,
     logout,
-    forgotPassword,
     resetPassword,
-    handleRefreshToken,
-    changePassword,
     sendOtp,
     sendOtpResetPassword,
     verifyOtp,

@@ -41,11 +41,11 @@ router.post(
     createAccount
 );
 router.get(
-    "/api/v1/user/admin/total-page",
+    "/admin/total-page",
     authIsAdminMiddleware,
     getTotalPage
 );
-router.get("/api/v1/user/admin/count", authIsAdminMiddleware, countAccount);
+router.get("/admin/count", authIsAdminMiddleware, countAccount);
 
 router.get("/:id", authMiddleware, getUserById);
 router.delete("/:id", authIsAdminMiddleware, deleteUserById);

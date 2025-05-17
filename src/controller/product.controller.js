@@ -13,6 +13,8 @@ import {
 } from "../utils/responseHandler.js";
 import validateMongoDbId from "../utils/validateMongodbId.js";
 import Attribute from "../model/attribute.js";
+import cloudinary from "../config/cloudinary.js";
+import Image from "../model/image.js";
 
 export const getAllProduct = async (req, res) => {
     try {
@@ -239,6 +241,14 @@ export const getProductById = async (req, res) => {
                 },
             },
             {
+                $lookup: {
+                    from: "images",
+                    localField: "_id",
+                    foreignField: "product",
+                    as: "imageUrls",
+                },
+            },
+            {
                 $project: {
                     _id: 1,
                     code: 1,
@@ -268,6 +278,10 @@ export const getProductById = async (req, res) => {
                     likeQuantity: {
                         _id: 1,
                     },
+                    imageUrls: {
+                        _id: 1,
+                        url: 1,
+                    },
                 },
             },
         ]);
@@ -290,12 +304,28 @@ export const createProduct = async (req, res) => {
     session.startTransaction();
 
     try {
-        const { category, attribute, ...productData } = req.body;
-        const attributes = JSON.parse(attribute);
-        const categories = JSON.parse(category);
+        let { categories, attributes, images, ...productData } = req.body;
 
         const newProduct = await Product.create([productData], { session });
         const product = newProduct[0];
+
+        const urls = await Promise.all(
+            images.map(async (base64) => {
+                const result = await cloudinary.uploader.upload(base64, {
+                    folder: "products", // optional
+                });
+                return {
+                    url: result.secure_url,
+                    name: result.original_filename,
+                    product: product._id,
+                    isActive: true,
+                };
+            })
+        );
+
+        if (urls && urls.length > 0) {
+            await Image.insertMany(urls, { session });
+        }
 
         if (Array.isArray(categories) && categories.length > 0) {
             const relations = categories.map((item) => ({
@@ -308,11 +338,10 @@ export const createProduct = async (req, res) => {
 
         if (Array.isArray(attributes) && attributes.length > 0) {
             const relations = attributes.map((item) => ({
-                name: product.name,
                 price: item.price,
                 size: item.size,
-                stock: item.quantity,
-                cache: item.quantity,
+                stock: item.stock,
+                cache: item.stock,
                 product: product._id,
             }));
 
@@ -322,7 +351,7 @@ export const createProduct = async (req, res) => {
         await session.commitTransaction();
         session.endSession();
 
-        return successResponse(res, "Tạo sản phẩm thành công!", product);
+        return successResponse(res, "Tạo sản phẩm thành công!", true);
     } catch (error) {
         await session.abortTransaction();
         session.endSession();
@@ -331,22 +360,77 @@ export const createProduct = async (req, res) => {
 };
 
 export const updateProduct = async (req, res) => {
-    try {
-        const { id } = req.params;
-        validateMongoDbId(id);
-        const updatedCategory = await Product.findByIdAndUpdate(id, req.body, {
-            new: true,
-        });
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-        if (!updatedCategory) {
-            return notFoundResponse(res, "Không tìm thấy sản phẩm");
+    try {
+        const { _id, categories, attributes, ...productData } = req.body;
+
+        console.log(categories, attributes, "attributexxxs");
+
+        if (categories && categories.length > 0) {
+            // const productCategories = await Product_Category.find({
+            //     product: _id,
+            // });
+            // console.log(productCategories, "productCategories");
+            // if (productCategories && productCategories.length > 0) {
+            //     for (const item of productCategories) {
+            //         const matchedCategory = categories.find((item2) =>
+            //             item._id.equals(item2._id)
+            //         );
+            //         console.log(matchedCategory, "matchedCategory");
+            //         if (matchedCategory) {
+            //             await Product_Category.updateOne(
+            //                 { _id: item._id },
+            //                 { ...matchedCategory },
+            //                 { session }
+            //             );
+            //         } else {
+            //             await Product_Category.deleteOne(
+            //                 { _id: item._id },
+            //                 { session }
+            //             );
+            //         }
+            //     }
+            // } else {
+            //     const convertCategories = categories.map((item) => ({
+            //         category: item._id,
+            //         product: _id,
+            //     }));
+            //     await Product_Category.insertMany(convertCategories, {
+            //         session,
+            //     });
+            // }
         }
 
-        return successResponse(
-            res,
-            "Cập nhật sản phẩm thành công!",
-            updatedCategory
-        );
+        if (attributes && attributes.length > 0) {
+            for (const item of attributes) {
+                const attribute = await Attribute.findOne({ _id: item._id });
+
+                if (attribute) {
+                    await Attribute.updateOne(
+                        { _id: item._id },
+                        {
+                            price: item.price,
+                            size: item.size,
+                            stock: item.stock,
+                            cache: item.stock,
+                            product: _id,
+                        },
+                        { session }
+                    );
+                } else {
+                    await Attribute.create([{ ...item }], {
+                        session,
+                    });
+                }
+            }
+        }
+
+        await session.commitTransaction();
+        session.endSession();
+
+        return successResponse(res, "Chỉnh sửa sản phẩm thành công!", true);
     } catch (error) {
         if (error instanceof ErrorCustom) {
             return errorResponse400(res, error.message);
@@ -514,10 +598,190 @@ export const getAllProductByBrand = async (req, res) => {
 
 export const countProduct = async (req, res) => {
     try {
-    } catch (error) {}
+        const products = await Product.find({});
+
+        return successResponse(res, "", products.length);
+    } catch (error) {
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
+        return errorResponse500(res, "Lỗi server", error.message);
+    }
 };
 
-export const searchByKeyword = async (req, res) => {};
+export const searchByKeyword = async (req, res) => {
+    try {
+        let { page, size, isActive, userId, search } = req.query;
+        let products = [];
+        let result = [];
+        let filter = {
+            isActive: true,
+        };
+
+        page = parseInt(page);
+        size = parseInt(size);
+
+        if (search) {
+            filter["$or"] = [
+                {
+                    name: { $regex: search, $options: "i" },
+                },
+                {
+                    code: { $regex: search, $options: "i" },
+                },
+            ];
+        }
+
+        console.log(filter, "filter");
+
+        products = await Product.aggregate([
+            { $sort: { createdAt: -1 } },
+            {
+                $lookup: {
+                    from: "brands",
+                    localField: "brand",
+                    foreignField: "_id",
+                    as: "brand",
+                },
+            },
+            {
+                $unwind: {
+                    path: "$brand",
+                    preserveNullAndEmptyArrays: true,
+                },
+            },
+            {
+                $lookup: {
+                    from: "sales",
+                    localField: "sale",
+                    foreignField: "_id",
+                    as: "sale",
+                },
+            },
+            {
+                $unwind: {
+                    path: "$sale",
+                    preserveNullAndEmptyArrays: true,
+                },
+            },
+            {
+                $lookup: {
+                    from: "product_categories",
+                    localField: "_id",
+                    foreignField: "product",
+                    as: "productCategories",
+                },
+            },
+
+            {
+                $lookup: {
+                    from: "categories",
+                    localField: "productCategories.category",
+                    foreignField: "_id",
+                    as: "categories",
+                },
+            },
+            {
+                $lookup: {
+                    from: "attributes",
+                    localField: "_id",
+                    foreignField: "product",
+                    as: "attributes",
+                },
+            },
+            {
+                $lookup: {
+                    from: "product_user_likes",
+                    localField: "_id",
+                    foreignField: "product",
+                    as: "likeQuantity",
+                },
+            },
+            {
+                $match: filter,
+            },
+            {
+                $skip: page * size,
+            },
+            {
+                $limit: size,
+            },
+            {
+                $match: filter,
+            },
+            {
+                $project: {
+                    name: 1,
+                    code: 1,
+                    brand: {
+                        _id: 1,
+                        name: 1,
+                    },
+                    sale: {
+                        _id: 1,
+                        isActive: 1,
+                        discount: 1,
+                        description: 1,
+                        name: 1,
+                    },
+                    view: 1,
+                    categories: {
+                        _id: 1,
+                        name: 1,
+                        code: 1,
+                    },
+                    attributes: {
+                        _id: 1,
+                        price: 1,
+                        size: 1,
+                        stock: 1,
+                        cache: 1,
+                    },
+                    likeQuantity: {
+                        _id: 1,
+                    },
+                },
+            },
+        ]);
+
+        if (userId !== "undefined") {
+            const productUserLike = await ProductUserLike.find({
+                user: userId,
+            });
+
+            result = products.map((product) => {
+                const likedItem = productUserLike.find((item) => {
+                    return item.product.equals(product._id);
+                });
+                return {
+                    ...product,
+                    liked: likedItem?.liked,
+                };
+            });
+        } else {
+            result = products;
+        }
+
+        const total = await Product.countDocuments(filter);
+
+        return successResponseList(
+            res,
+            "Lấy danh sách sản phẩm thành công!",
+            result,
+            {
+                total,
+                page: page,
+                size: size,
+                totalPages: Math.ceil(total / size),
+            }
+        );
+    } catch (error) {
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
+        return errorResponse500(res, "Lỗi server", error.message);
+    }
+};
 
 export const getListHot = async (req, res) => {};
 

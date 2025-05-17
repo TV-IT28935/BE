@@ -213,8 +213,6 @@ const getAllOrder = async (req, res) => {
             filter.orderStatus = orderStatusId;
         }
 
-        console.log(filter, "filter");
-
         const orders = await Order.find(filter)
             .populate({
                 path: "orderStatus",
@@ -256,7 +254,18 @@ const getAllOrder = async (req, res) => {
 };
 const cancelOrder = async (req, res) => {};
 const countOrderByName = async (req, res) => {};
-const countOrder = async (req, res) => {};
+const countOrder = async (req, res) => {
+    try {
+        const orders = await Order.find({});
+
+        return successResponse(res, "", orders.length);
+    } catch (error) {
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
+        return errorResponse500(res, "Lỗi server", error.message);
+    }
+};
 const reportAmountYear = async (req, res) => {};
 const reportByProduct = async (req, res) => {};
 const getOrderByOrderStatusAndYearAndMonth = async (req, res) => {
@@ -391,11 +400,11 @@ const getOrderByOrderStatusAndYearAndMonth = async (req, res) => {
 const getOrderByProduct = async (req, res) => {};
 const reportAmountMonth = async (req, res) => {};
 const updateOrder = async (req, res) => {};
-const updateCancel = async (req, res) => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
 
+const updateCancel = async (req, res) => {
     try {
+        const session = await mongoose.startSession();
+        session.startTransaction();
         const { id, status, shipDate, shipment, description } = req.body;
 
         const [orders, orderStatus] = await Promise.all([
@@ -409,8 +418,9 @@ const updateCancel = async (req, res) => {
                         as: "orderDetails",
                     },
                 },
-            ]).session(session),
-            OrderStatus.findOne({ code: status }).session(session),
+            ]),
+
+            OrderStatus.findOne({ code: status }),
         ]);
 
         const order = orders[0];
@@ -423,6 +433,7 @@ const updateCancel = async (req, res) => {
         if (!orderStatus) {
             await session.abortTransaction();
             session.endSession();
+
             return errorResponse400(
                 res,
                 "Trạng thái đơn hàng không tồn tại!",
@@ -558,7 +569,53 @@ const updateShip = async (req, res) => {
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
-const updateSuccess = async (req, res) => {};
+const updateSuccess = async (req, res) => {
+    try {
+        const { id, status } = req.body;
+
+        const [order, orderStatus] = await Promise.all([
+            await Order.findOne({
+                _id: id,
+            }),
+            await OrderStatus.findOne({
+                code: status,
+            }),
+        ]);
+
+        if (!order) {
+            return errorResponse400(res, "Đơn hàng không tồn tại!", false);
+        }
+
+        if (!orderStatus) {
+            return errorResponse400(
+                res,
+                "Trạng thái đơn hàng không tồn tại!",
+                false
+            );
+        }
+
+        await Order.updateOne(
+            {
+                _id: id,
+            },
+            {
+                ...order.toObject(),
+                orderStatus: orderStatus._id,
+                isPending: true,
+                updateAt: new Date(),
+            }
+        );
+
+        console.log(order, orderStatus, "orderxxx");
+
+        return successResponse(res, "Cập nhật đơn hàng thành công!", true);
+    } catch (error) {
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
+        return errorResponse500(res, "Lỗi server", error.message);
+    }
+};
 const getAllOrderAndPagination = async (req, res) => {
     try {
         const { filter } = aqp(req.query);

@@ -51,7 +51,10 @@ const createUser = async (req, res) => {
 
         return successResponse(res, "Tạo người dùng thành công!");
     } catch (error) {
-        return errorResponse500(res, error.message);
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
+        return errorResponse500(res, "Lỗi server", error.message);
     }
 };
 
@@ -144,11 +147,10 @@ const getAllUser = async (req, res) => {
             }
         );
     } catch (error) {
-        return errorResponse500(
-            res,
-            "Lỗi khi lấy danh sách người dùng",
-            error.message
-        );
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
+        return errorResponse500(res, "Lỗi server", error.message);
     }
 };
 
@@ -341,6 +343,9 @@ const getAccountByRole = async (req, res) => {
             }
         );
     } catch (error) {
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
@@ -391,12 +396,26 @@ const createAccount = async (req, res) => {
 
         return successResponse(res, "Tạo người dùng thành công!");
     } catch (error) {
-        return errorResponse500(res, error.message);
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
+        return errorResponse500(res, "Lỗi server", error.message);
     }
 };
 
 const getTotalPage = async (req, res) => {};
-const countAccount = async (req, res) => {};
+const countAccount = async (req, res) => {
+    try {
+        const users = await User.find({});
+
+        return successResponse(res, "", users.length);
+    } catch (error) {
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
+        return errorResponse500(res, "Lỗi server", error.message);
+    }
+};
 
 export {
     createUser,

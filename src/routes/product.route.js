@@ -37,10 +37,15 @@ router.get("/recommendation", getRecommendationById);
 router.get("/list/hot", getListHot);
 router.get("/search", searchByKeyword);
 router.get("/count", countProduct);
-router.post("/create", authIsAdminMiddleware, createProduct);
+router.post(
+    "/create",
+    // validate(productSchemaJoi),
+    authIsAdminMiddleware,
+    createProduct
+);
 router.put(
     "/modify",
-    validate(productSchemaJoi),
+    // validate(productSchemaJoi),
     authIsAdminMiddleware,
     updateProduct
 );
