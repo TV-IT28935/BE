@@ -9,36 +9,30 @@ import {
     successResponse,
 } from "../utils/responseHandler.js";
 import OrderStatus from "../model/orderStatus.js";
+import validateMongoDbId from "../utils/validateMongodbId.js";
 dotenv.config();
 
 export const generatePaymentUrl = async (req, res) => {
-    process.env.TZ = "Asia/Ho_Chi_Minh";
+    process.env.TZ = "Asia/Ha_Noi";
 
     const { orderId } = req.body;
 
-    if (!mongoose.Types.ObjectId.isValid(orderId)) {
-        return res
-            .status(404)
-            .json({ success: false, message: "Invalid order id" });
-    }
+    validateMongoDbId(orderId);
 
     const order = await Order.findById(orderId);
     if (!order) {
-        return res.status(401).json({
-            success: false,
-            message: "OrderId not found",
-        });
+        return errorResponse400(res, "Không tìm thấy đơn hàng!", false);
     }
 
     let date = new Date();
     let createDate = moment(date).format("YYYYMMDDHHmmss");
     let expireDate = moment(date).add(15, "minutes").format("YYYYMMDDHHmmss");
-    let ipAddr = "127.0.0.1";
-    const tmnCode = "4TSRCLBS";
-    const secretKey = "ULV6ZHRAYWF8XFOBF2M02J1U2HC8Z6ZM";
-    const vnpUrl = "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
-    const returnUrl =
-        "http://localhost:8080/api/v1/payment/handle-payment-response";
+
+    let ipAddr = process.env.IP_ADDR;
+    const tmnCode = process.env.VNP_TMN_CODE;
+    const secretKey = process.env.VNP_SECRET_KEY;
+    const vnpUrl = process.env.VNP_URL;
+    const returnUrl = process.env.VNP_RETURN_URL;
 
     let locale = "vn";
     let currCode = "VND";
@@ -75,7 +69,7 @@ export const generatePaymentUrl = async (req, res) => {
 
     const paymentUrl = `${vnpUrl}?${urlParams.toString()}`;
 
-    return successResponse(res, "", paymentUrl);
+    res.redirect(paymentUrl);
 };
 
 function sortParams(obj) {
