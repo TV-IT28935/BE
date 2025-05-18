@@ -30,7 +30,7 @@ const userDetailSchemaJoi = Joi.object({
         "any.required": "Email là bắt buộc.",
     }),
 
-    avatar: Joi.string().max(255).optional().allow("").messages({
+    avatar: Joi.string().optional().allow("").messages({
         "string.max": "Avatar không được vượt quá 255 ký tự.",
     }),
 

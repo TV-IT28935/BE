@@ -32,7 +32,7 @@ import userDetailSchemaJoi from "../validation/userDetail.validation.js";
 
 const router = express.Router();
 
-router.post("/create", validate(userSchemaJoi), createUser);
+router.post("/create", createUser);
 router.get("/admin/account/find-all", authIsAdminMiddleware, getAllUser);
 router.post(
     "/admin/create",
@@ -40,11 +40,7 @@ router.post(
     validate(userDetailSchemaJoi),
     createAccount
 );
-router.get(
-    "/admin/total-page",
-    authIsAdminMiddleware,
-    getTotalPage
-);
+router.get("/admin/total-page", authIsAdminMiddleware, getTotalPage);
 router.get("/admin/count", authIsAdminMiddleware, countAccount);
 
 router.get("/:id", authMiddleware, getUserById);

@@ -36,6 +36,7 @@ export const getAllProduct = async (req, res) => {
                     as: "brand",
                 },
             },
+
             {
                 $unwind: {
                     path: "$brand",
@@ -89,7 +90,14 @@ export const getAllProduct = async (req, res) => {
                     as: "likeQuantity",
                 },
             },
-
+            {
+                $lookup: {
+                    from: "images",
+                    localField: "_id",
+                    foreignField: "product",
+                    as: "imageUrls",
+                },
+            },
             {
                 $skip: page * size,
             },
@@ -126,6 +134,10 @@ export const getAllProduct = async (req, res) => {
                     },
                     likeQuantity: {
                         _id: 1,
+                    },
+                    imageUrls: {
+                        _id: 1,
+                        url: 1,
                     },
                 },
             },
@@ -173,6 +185,10 @@ export const getProductById = async (req, res) => {
     try {
         const { id } = req.params;
         validateMongoDbId(id);
+        await Product.updateOne(
+            { _id: new mongoose.Types.ObjectId(id) },
+            { $inc: { view: 1 } }
+        );
         const product = await Product.aggregate([
             {
                 $match: {
@@ -261,6 +277,7 @@ export const getProductById = async (req, res) => {
                     },
                     sale: {
                         _id: 1,
+                        name: 1,
                         discount: 1,
                     },
                     view: 1,
@@ -312,7 +329,15 @@ export const createProduct = async (req, res) => {
         const urls = await Promise.all(
             images.map(async (base64) => {
                 const result = await cloudinary.uploader.upload(base64, {
-                    folder: "products", // optional
+                    folder: "products",
+                    transformation: [
+                        {
+                            width: 700,
+                            height: 700,
+                            crop: "limit",
+                            quality: "auto",
+                        },
+                    ],
                 });
                 return {
                     url: result.secure_url,
@@ -360,47 +385,140 @@ export const createProduct = async (req, res) => {
 };
 
 export const updateProduct = async (req, res) => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
     try {
-        const { _id, categories, attributes, ...productData } = req.body;
+        const {
+            _id,
+            categories, // category mới
+            categoriesOld, // category cũ
+            attributes,
+            imageUrls, // ban đầu
+            images, // đã xóa những ảnh ban đầu
+            imagesNew, // những ảnh mới được thêm
+            ...productData
+        } = req.body;
+        console.log("xxxxxxxxxxxxx1");
 
-        console.log(categories, attributes, "attributexxxs");
+        const session = await mongoose.startSession();
+        session.startTransaction();
+
+        if (imagesNew && imagesNew.length > 0) {
+            const result = await Promise.all(
+                imagesNew.map(async (base64) => {
+                    const result = await cloudinary.uploader.upload(base64, {
+                        folder: "products",
+                        transformation: [
+                            {
+                                width: 700,
+                                height: 700,
+                                crop: "limit",
+                                quality: "auto",
+                            },
+                        ],
+                    });
+                    return {
+                        url: result.secure_url,
+                        name: result.original_filename,
+                        product: _id,
+                        isActive: true,
+                    };
+                })
+            );
+
+            if (result && result.length > 0) {
+                await Image.insertMany(result, { session });
+            }
+        }
+
+        if (images.length > 0) {
+            for (const imageUrl of imageUrls) {
+                const result = images.find(
+                    (item) =>
+                        JSON.stringify(item._id) == JSON.stringify(imageUrl._id)
+                );
+
+                if (result) {
+                    await Image.updateOne(
+                        {
+                            _id: imageUrl._id,
+                        },
+                        {
+                            ...result,
+                        },
+                        { session }
+                    );
+                } else {
+                    await Image.deleteOne(
+                        {
+                            _id: imageUrl._id,
+                        },
+                        { session }
+                    );
+                }
+            }
+        } else {
+        }
+
+        console.log("xxxxxxxxxxxxx2");
 
         if (categories && categories.length > 0) {
-            // const productCategories = await Product_Category.find({
-            //     product: _id,
-            // });
-            // console.log(productCategories, "productCategories");
-            // if (productCategories && productCategories.length > 0) {
-            //     for (const item of productCategories) {
-            //         const matchedCategory = categories.find((item2) =>
-            //             item._id.equals(item2._id)
-            //         );
-            //         console.log(matchedCategory, "matchedCategory");
-            //         if (matchedCategory) {
-            //             await Product_Category.updateOne(
-            //                 { _id: item._id },
-            //                 { ...matchedCategory },
-            //                 { session }
-            //             );
-            //         } else {
-            //             await Product_Category.deleteOne(
-            //                 { _id: item._id },
-            //                 { session }
-            //             );
-            //         }
-            //     }
-            // } else {
-            //     const convertCategories = categories.map((item) => ({
-            //         category: item._id,
-            //         product: _id,
-            //     }));
-            //     await Product_Category.insertMany(convertCategories, {
-            //         session,
-            //     });
-            // }
+            console.log(categoriesOld, "categoriesOld");
+            if (categoriesOld && categoriesOld.length > 0) {
+                if (categories.length > categoriesOld.length) {
+                    for (const item of categories) {
+                        const matchedCategory = categoriesOld.find(
+                            (item2) =>
+                                JSON.stringify(item2._id) ===
+                                JSON.stringify(item._id)
+                        );
+                        console.log(matchedCategory, "matchedCategory");
+                        if (matchedCategory) {
+                            await Product_Category.updateOne(
+                                { _id: item._id },
+                                { ...item },
+                                { session }
+                            );
+                        } else {
+                            await Product_Category.create(
+                                {
+                                    category: item._id,
+                                    product: _id,
+                                },
+                                { session }
+                            );
+                        }
+                    }
+                } else {
+                    for (const item of categoriesOld) {
+                        const matchedCategory = categories.find(
+                            (item2) =>
+                                JSON.stringify(item._id) ===
+                                JSON.stringify(item2._id)
+                        );
+                        console.log(matchedCategory, "matchedCategory");
+                        if (matchedCategory) {
+                            await Product_Category.updateOne(
+                                { _id: item._id },
+                                { ...matchedCategory },
+                                { session }
+                            );
+                        } else {
+                            console.log(item, item._id, "xxxxxxxxxxxxxx");
+                            await Product_Category.deleteOne(
+                                { category: item._id, product: _id },
+                                { session }
+                            );
+                        }
+                    }
+                }
+            } else {
+                const convertCategories = categories.map((item) => ({
+                    category: item._id,
+                    product: _id,
+                }));
+                await Product_Category.insertMany(convertCategories, {
+                    session,
+                });
+            }
         }
 
         if (attributes && attributes.length > 0) {
@@ -426,6 +544,17 @@ export const updateProduct = async (req, res) => {
                 }
             }
         }
+
+        console.log("xxxxxxxxxxxxx3");
+
+        await Product.updateOne(
+            {
+                _id,
+            },
+            productData
+        );
+
+        console.log("xxxxxxxxxxxxx4");
 
         await session.commitTransaction();
         session.endSession();
@@ -549,6 +678,14 @@ export const getAllProductByBrand = async (req, res) => {
                 },
             },
             {
+                $lookup: {
+                    from: "images",
+                    localField: "_id",
+                    foreignField: "product",
+                    as: "imageUrls",
+                },
+            },
+            {
                 $project: {
                     _id: 1,
                     name: 1,
@@ -570,6 +707,10 @@ export const getAllProductByBrand = async (req, res) => {
                         _id: 1,
                         name: 1,
                         code: 1,
+                    },
+                    imageUrls: {
+                        _id: 1,
+                        url: 1,
                     },
                 },
             },
@@ -617,6 +758,8 @@ export const searchByKeyword = async (req, res) => {
         let filter = {
             isActive: true,
         };
+
+        console.log(typeof userId, userId, "userIdxxxxx");
 
         page = parseInt(page);
         size = parseInt(size);
@@ -744,7 +887,9 @@ export const searchByKeyword = async (req, res) => {
             },
         ]);
 
-        if (userId !== "undefined") {
+        if (userId == "undefined" || userId == "null") {
+            result = products;
+        } else {
             const productUserLike = await ProductUserLike.find({
                 user: userId,
             });
@@ -758,8 +903,6 @@ export const searchByKeyword = async (req, res) => {
                     liked: likedItem?.liked,
                 };
             });
-        } else {
-            result = products;
         }
 
         const total = await Product.countDocuments(filter);
@@ -1041,10 +1184,42 @@ export const getAllProductWishList = async (req, res) => {
                 },
             },
             {
+                $lookup: {
+                    from: "images",
+                    localField: "_id",
+                    foreignField: "product",
+                    as: "imageUrls",
+                },
+            },
+            {
                 $skip: page * size,
             },
             {
                 $limit: size,
+            },
+            {
+                $project: {
+                    _id: 1,
+                    code: 1,
+                    name: 1,
+                    description: 1,
+                    isActive: 1,
+                    brand: {
+                        _id: 1,
+                        name: 1,
+                        isActive: 1,
+                    },
+                    sale: {
+                        _id: 1,
+                        isActive: 1,
+                        name: 1,
+                    },
+                    view: 21,
+                    imageUrls: {
+                        _id: 1,
+                        url: 1,
+                    },
+                },
             },
         ]);
 
@@ -1083,6 +1258,8 @@ export const filterProducts = async (req, res) => {
     try {
         const { brandIds, categoryIds, max, min, size, page, userId } =
             req.body;
+
+        console.log(typeof userId, "userIdxx");
 
         const brandIdsNew = brandIds.map(
             (id) => new mongoose.Types.ObjectId(id)
@@ -1224,7 +1401,7 @@ export const filterProducts = async (req, res) => {
 
         let result = [];
 
-        if (userId !== "undefined") {
+        if (userId !== "undefined" || userId !== "null") {
             const productUserLike = await ProductUserLike.find({
                 user: userId,
             });

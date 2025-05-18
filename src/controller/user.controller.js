@@ -13,15 +13,30 @@ import validateMongoDbId from "../utils/validateMongodbId.js";
 import bcrypt from "bcrypt";
 import UserDetail from "../model/userDetail.js";
 import mongoose from "mongoose";
+import cloudinary from "../config/cloudinary.js";
 
 const createUser = async (req, res) => {
+    const { username, password, email, avatar } = req.body;
+
+    let result;
     try {
-        const { username, password, email } = req.body;
+        result = await cloudinary.uploader.upload(avatar, {
+            folder: "users",
+        });
+    } catch (err) {
+        return errorResponse500(res, "Lỗi khi upload avatar", err.message);
+    }
+    try {
+        const session = await mongoose.startSession();
+        session.startTransaction();
+
         const existingUser = await UserDetail.findOne({
             email,
             username,
-        });
+        }).session(session);
         if (existingUser) {
+            await session.abortTransaction();
+            session.endSession();
             return errorResponse400(res, "Người dùng đã tồn tại");
         }
 
@@ -32,25 +47,34 @@ const createUser = async (req, res) => {
             password: hashedPassword,
         });
 
-        await user.save();
+        await user.save({ session });
+
         const userDetail = new UserDetail({
             ...req.body,
+            avatar: result.secure_url,
             userId: user._id,
         });
 
-        await userDetail.save();
+        await userDetail.save({ session });
+
+        await session.commitTransaction();
+        session.endSession();
 
         const mailOptions = {
             from: process.env.MAIL_USERNAME,
-            to: req.body.email,
+            to: email,
             subject: "Chào mừng tới với cửa hàng ShoeFast",
-            text: `Chào mừng tới với cửa hàng ShoeFast. User name vừa được tạo mới là :${user.username}`,
+            text: `Chào mừng tới với cửa hàng ShoeFast. User name vừa được tạo mới là: ${username}`,
         };
 
         await transporter.sendMail(mailOptions);
 
         return successResponse(res, "Tạo người dùng thành công!");
     } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+
+        console.error("Tạo user thất bại:", error);
         if (error instanceof ErrorCustom) {
             return errorResponse400(res, error.message);
         }
@@ -235,7 +259,26 @@ const deleteUserById = async (req, res) => {
 
 const updateUserById = async (req, res) => {
     try {
-        const { isActive, ...rest } = req.body;
+        const { isActive, avatar, ...rest } = req.body;
+        let result;
+        let avatarUrl = avatar;
+
+        // Chỉ upload nếu là base64
+        if (avatar && avatar.startsWith("data:image")) {
+            try {
+                result = await cloudinary.uploader.upload(avatar, {
+                    folder: "users",
+                });
+                avatarUrl = result.secure_url;
+            } catch (err) {
+                return errorResponse500(
+                    res,
+                    "Lỗi khi upload avatar",
+                    err.message
+                );
+            }
+        }
+
         const [updateUserDetail, updateUser] = await Promise.all([
             UserDetail.findByIdAndUpdate(
                 {
@@ -243,6 +286,7 @@ const updateUserById = async (req, res) => {
                 },
                 {
                     ...rest,
+                    avatar: avatarUrl,
                 },
                 { upsert: true }
             ),

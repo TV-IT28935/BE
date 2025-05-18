@@ -1,4 +1,9 @@
+import aqp from "api-query-params";
 import mongoose from "mongoose";
+import { ErrorCustom } from "../helper/ErrorCustom.js";
+import Attribute from "../model/attribute.js";
+import CartItem from "../model/cartItem.js";
+import Order from "../model/order.js";
 import OrderDetail from "../model/orderDetail.js";
 import OrderStatus from "../model/orderStatus.js";
 import generateOrderCode from "../utils/generateOrderCode.js";
@@ -8,11 +13,6 @@ import {
     successResponse,
     successResponseList,
 } from "../utils/responseHandler.js";
-import Order from "../model/order.js";
-import { ErrorCustom } from "../helper/ErrorCustom.js";
-import CartItem from "../model/cartItem.js";
-import Attribute from "../model/attribute.js";
-import aqp from "api-query-params";
 
 const createOrder = async (req, res) => {
     const session = await mongoose.startSession();
@@ -26,7 +26,7 @@ const createOrder = async (req, res) => {
             email,
             note,
             total,
-            isPending,
+            isPayment,
             payment,
             voucherId,
             orderDetails,
@@ -37,19 +37,10 @@ const createOrder = async (req, res) => {
 
         let orderStatusId = null;
 
-        if (payment === "COD") {
+        if (payment) {
             const status = await OrderStatus.findOne({
                 code: "PENDING_CONFIRM",
             }).session(session);
-            orderStatusId = status?._id;
-
-            console.log(status, "status");
-        } else if (payment === "BANK" || payment === "VNPAY") {
-            const status = await OrderStatus.findOne({
-                code: "PROCESSING",
-            }).session(session);
-            console.log(status, "status");
-
             orderStatusId = status?._id;
         }
 
@@ -65,7 +56,7 @@ const createOrder = async (req, res) => {
                     email,
                     note,
                     total,
-                    isPending,
+                    isPayment,
                     shipment,
                     payment,
                     shipDate,
@@ -157,16 +148,84 @@ const getOrderDetailByOrderId = async (req, res) => {
     try {
         const { orderId } = req.query;
 
-        const orderDetail = await OrderDetail.find({ order: orderId })
-            .populate({
-                path: "attribute",
-                populate: {
-                    path: "product",
-                    select: "_id code name",
+        const orderDetail = await OrderDetail.aggregate([
+            {
+                $match: {
+                    order: new mongoose.Types.ObjectId(orderId),
                 },
-            })
-            .populate("order")
-            .select("-__v -createdAt -updatedAt");
+            },
+            // Join attribute
+            {
+                $lookup: {
+                    from: "attributes",
+                    localField: "attribute",
+                    foreignField: "_id",
+                    as: "attribute",
+                },
+            },
+            { $unwind: "$attribute" },
+
+            // Join product from attribute
+            {
+                $lookup: {
+                    from: "products",
+                    localField: "attribute.product",
+                    foreignField: "_id",
+                    as: "product",
+                },
+            },
+            { $unwind: "$product" },
+
+            // Join images from product
+            {
+                $lookup: {
+                    from: "images",
+                    localField: "product._id",
+                    foreignField: "product",
+                    as: "imageUrls",
+                },
+            },
+
+            // Join order
+            {
+                $lookup: {
+                    from: "orders",
+                    localField: "order",
+                    foreignField: "_id",
+                    as: "order",
+                },
+            },
+            { $unwind: "$order" },
+
+            // Optional: Chỉ lấy các trường cần thiết
+            {
+                $project: {
+                    _id: 1,
+                    quantity: 1,
+                    sellPrice: 1,
+                    originPrice: 1,
+                    attribute: {
+                        _id: "$attribute._id",
+                        size: "$attribute.size",
+                        price: "$attribute.price",
+                    },
+                    product: {
+                        _id: "$product._id",
+                        code: "$product.code",
+                        name: "$product.name",
+                    },
+                    imageUrls: {
+                        _id: 1,
+                        url: 1,
+                    },
+                    order: {
+                        _id: "$order._id",
+                        status: "$order.status", // hoặc các field bạn muốn lấy
+                        userId: "$order.userId",
+                    },
+                },
+            },
+        ]);
 
         if (!orderDetail) {
             return errorResponse400(res, "Không tìm thấy chi tiết đơn hàng");
@@ -252,7 +311,81 @@ const getAllOrder = async (req, res) => {
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
-const cancelOrder = async (req, res) => {};
+const cancelOrder = async (req, res) => {
+    try {
+        const session = await mongoose.startSession();
+        session.startTransaction();
+        const { id, status, shipDate, shipment, description } = req.body;
+
+        const [orders, orderStatus] = await Promise.all([
+            Order.aggregate([
+                { $match: { _id: new mongoose.Types.ObjectId(id) } },
+                {
+                    $lookup: {
+                        from: "orderdetails",
+                        localField: "_id",
+                        foreignField: "order",
+                        as: "orderDetails",
+                    },
+                },
+            ]),
+
+            OrderStatus.findOne({ code: status }),
+        ]);
+
+        const order = orders[0];
+        if (!order) {
+            await session.abortTransaction();
+            session.endSession();
+            return errorResponse400(res, "Đơn hàng không tồn tại!", false);
+        }
+
+        if (!orderStatus) {
+            await session.abortTransaction();
+            session.endSession();
+
+            return errorResponse400(
+                res,
+                "Trạng thái đơn hàng không tồn tại!",
+                false
+            );
+        }
+
+        for (const orderDetail of order.orderDetails) {
+            await Attribute.updateOne(
+                { _id: orderDetail.attribute },
+                { $inc: { stock: orderDetail.quantity } },
+                { session }
+            );
+        }
+
+        await Order.updateOne(
+            { _id: id },
+            {
+                orderStatus: orderStatus._id,
+                shipDate,
+                shipment,
+                updateAt: new Date(),
+                reason: description,
+            },
+            { session }
+        );
+
+        await session.commitTransaction();
+        session.endSession();
+
+        return successResponse(res, "Hủy đơn hàng thành công!", true);
+    } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
+
+        return errorResponse500(res, "Lỗi server", error.message);
+    }
+};
 const countOrderByName = async (req, res) => {};
 const countOrder = async (req, res) => {
     try {
@@ -267,7 +400,95 @@ const countOrder = async (req, res) => {
     }
 };
 const reportAmountYear = async (req, res) => {};
-const reportByProduct = async (req, res) => {};
+const reportByProduct = async (req, res) => {
+    try {
+        const { page, size, sort } = req.query;
+        const result = await OrderDetail.aggregate([
+            // Join sang bảng attributes để lấy thông tin productId
+            {
+                $lookup: {
+                    from: "attributes",
+                    localField: "attribute",
+                    foreignField: "_id",
+                    as: "attributeInfo",
+                },
+            },
+            { $unwind: "$attributeInfo" },
+
+            // Thêm productId từ attribute
+            {
+                $addFields: {
+                    productId: "$attributeInfo.product",
+                },
+            },
+
+            // Join sang orders để lọc theo trạng thái thanh toán
+            {
+                $lookup: {
+                    from: "orders",
+                    localField: "order",
+                    foreignField: "_id",
+                    as: "orderInfo",
+                },
+            },
+            { $unwind: "$orderInfo" },
+
+            // Chỉ lấy các order đã thanh toán
+            {
+                $match: {
+                    "orderInfo.isPayment": true, // hoặc "orderInfo.status": "paid" nếu bạn dùng status text
+                },
+            },
+
+            // Tính lineTotal
+            {
+                $addFields: {
+                    lineTotal: { $multiply: ["$quantity", "$sellPrice"] },
+                },
+            },
+
+            // Gộp theo productId
+            {
+                $group: {
+                    _id: "$productId",
+                    totalQuantity: { $sum: "$quantity" },
+                    totalRevenue: { $sum: "$lineTotal" },
+                    orderDetailIds: { $push: "$_id" },
+                    orderDetailLength: { $sum: 1 },
+                },
+            },
+
+            // Join lấy thêm thông tin product
+            {
+                $lookup: {
+                    from: "products",
+                    localField: "_id",
+                    foreignField: "_id",
+                    as: "productInfo",
+                },
+            },
+            {
+                $unwind: {
+                    path: "$productInfo",
+                    preserveNullAndEmptyArrays: true,
+                },
+            },
+
+            // Sort theo doanh thu và lấy top 10
+            { $sort: { [sort]: -1 } },
+            { $skip: +page * +size },
+            { $limit: +size },
+        ]);
+
+        return successResponseList(res, "", result);
+    } catch (error) {
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
+        return errorResponse500(res, "Lỗi server", error.message);
+    }
+};
+
 const getOrderByOrderStatusAndYearAndMonth = async (req, res) => {
     try {
         const { filter } = aqp(req.query);
@@ -344,7 +565,7 @@ const getOrderByOrderStatusAndYearAndMonth = async (req, res) => {
                     email: 1,
                     note: 1,
                     total: 1,
-                    isPending: 1,
+                    isPayment: 1,
                     payment: 1,
                     user: {
                         _id: 1,
@@ -601,7 +822,7 @@ const updateSuccess = async (req, res) => {
             {
                 ...order.toObject(),
                 orderStatus: orderStatus._id,
-                isPending: true,
+                isPayment: true,
                 updateAt: new Date(),
             }
         );
@@ -716,7 +937,7 @@ const getAllOrderAndPagination = async (req, res) => {
                     email: 1,
                     note: 1,
                     total: 1,
-                    isPending: 1,
+                    isPayment: 1,
                     payment: 1,
                     user: {
                         _id: 1,

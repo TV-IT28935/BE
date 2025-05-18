@@ -36,7 +36,7 @@ router.get("/relate", relateProduct);
 router.get("/recommendation", getRecommendationById);
 router.get("/list/hot", getListHot);
 router.get("/search", searchByKeyword);
-router.get("/count", countProduct);
+router.get("/count", authIsAdminMiddleware, countProduct);
 router.post(
     "/create",
     // validate(productSchemaJoi),

@@ -9,7 +9,7 @@ const orderSchema = new mongoose.Schema(
         email: { type: String },
         note: { type: String },
         total: { type: Number, required: true },
-        isPending: { type: Boolean, default: true },
+        isPayment: { type: Boolean, default: false },
         shipment: { type: mongoose.Schema.Types.ObjectId, ref: "shipment" },
         payment: { type: String, required: true },
         shipDate: { type: Date },

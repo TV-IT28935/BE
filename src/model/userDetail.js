@@ -18,7 +18,6 @@ const userDetailSchema = new mongoose.Schema(
         },
         avatar: {
             type: String,
-            maxLength: 255,
         },
         fullName: {
             type: String,

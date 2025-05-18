@@ -172,6 +172,14 @@ const getCartItemByAccountId = async (req, res) => {
                 },
             },
             {
+                $lookup: {
+                    from: "images",
+                    localField: "product._id",
+                    foreignField: "product",
+                    as: "imageUrls",
+                },
+            },
+            {
                 $project: {
                     _id: 1,
                     quantity: 1,
@@ -185,6 +193,10 @@ const getCartItemByAccountId = async (req, res) => {
                         _id: 1,
                         code: 1,
                         name: 1,
+                    },
+                    imageUrls: {
+                        _id: 1,
+                        url: 1,
                     },
                 },
             },
