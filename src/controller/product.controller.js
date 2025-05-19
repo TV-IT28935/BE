@@ -77,8 +77,86 @@ export const getAllProduct = async (req, res) => {
             {
                 $lookup: {
                     from: "attributes",
-                    localField: "_id",
-                    foreignField: "product",
+                    let: { productId: "$_id" },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: { $eq: ["$product", "$$productId"] },
+                            },
+                        },
+                        {
+                            $lookup: {
+                                from: "orderdetails",
+                                let: { attributeId: "$_id" },
+                                pipeline: [
+                                    {
+                                        $match: {
+                                            $expr: {
+                                                $eq: [
+                                                    "$attribute",
+                                                    "$$attributeId",
+                                                ],
+                                            },
+                                        },
+                                    },
+                                    {
+                                        $lookup: {
+                                            from: "orders",
+                                            localField: "order",
+                                            foreignField: "_id",
+                                            as: "order",
+                                        },
+                                    },
+                                    {
+                                        $unwind: {
+                                            path: "$order",
+                                            preserveNullAndEmptyArrays: false,
+                                        },
+                                    },
+                                    {
+                                        $lookup: {
+                                            from: "orderstatuses",
+                                            localField: "order.orderStatus",
+                                            foreignField: "_id",
+                                            as: "orderStatus",
+                                        },
+                                    },
+                                    {
+                                        $unwind: {
+                                            path: "$orderStatus",
+                                            preserveNullAndEmptyArrays: false,
+                                        },
+                                    },
+                                    {
+                                        $match: {
+                                            $expr: {
+                                                $eq: [
+                                                    "$orderStatus.code",
+                                                    "DELIVERED",
+                                                ],
+                                            },
+                                        },
+                                    },
+                                ],
+                                as: "orders",
+                            },
+                        },
+                        {
+                            $addFields: {
+                                sumOrder: { $sum: "$orders.quantity" },
+                            },
+                        },
+                        {
+                            $project: {
+                                _id: 1,
+                                price: 1,
+                                size: 1,
+                                stock: 1,
+                                cache: 1,
+                                sumOrder: 1,
+                            },
+                        },
+                    ],
                     as: "attributes",
                 },
             },
@@ -99,6 +177,14 @@ export const getAllProduct = async (req, res) => {
                 },
             },
             {
+                $lookup: {
+                    from: "user_review_attributes",
+                    localField: "_id",
+                    foreignField: "product",
+                    as: "reviews",
+                },
+            },
+            {
                 $skip: page * size,
             },
             {
@@ -108,6 +194,7 @@ export const getAllProduct = async (req, res) => {
                 $project: {
                     name: 1,
                     code: 1,
+                    rating: { $avg: "$reviews.rating" },
                     brand: {
                         _id: 1,
                         name: 1,
@@ -131,6 +218,7 @@ export const getAllProduct = async (req, res) => {
                         size: 1,
                         stock: 1,
                         cache: 1,
+                        sumOrder: 1,
                     },
                     likeQuantity: {
                         _id: 1,
@@ -154,10 +242,20 @@ export const getAllProduct = async (req, res) => {
                 return {
                     ...product,
                     liked: likedItem?.liked,
+                    sumOrder: product.attributes.reduce((acc, cur) => {
+                        return acc + cur.sumOrder;
+                    }, 0),
                 };
             });
         } else {
-            result = products;
+            result = products.map((product) => {
+                return {
+                    ...product,
+                    sumOrder: product.attributes.reduce((acc, cur) => {
+                        return acc + cur.sumOrder;
+                    }, 0),
+                };
+            });
         }
 
         const total = await Product.countDocuments({ isActive: true });
@@ -243,8 +341,89 @@ export const getProductById = async (req, res) => {
             {
                 $lookup: {
                     from: "attributes",
-                    localField: "_id",
-                    foreignField: "product",
+                    let: { productId: "$_id" },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: { $eq: ["$product", "$$productId"] },
+                            },
+                        },
+                        {
+                            $lookup: {
+                                from: "orderdetails",
+                                let: { attributeId: "$_id" },
+                                pipeline: [
+                                    {
+                                        $match: {
+                                            $expr: {
+                                                $eq: [
+                                                    "$attribute",
+                                                    "$$attributeId",
+                                                ],
+                                            },
+                                        },
+                                    },
+                                    {
+                                        $lookup: {
+                                            from: "orders",
+                                            localField: "order",
+                                            foreignField: "_id",
+                                            as: "order",
+                                        },
+                                    },
+                                    {
+                                        $unwind: {
+                                            path: "$order",
+                                            preserveNullAndEmptyArrays: false,
+                                        },
+                                    },
+                                    {
+                                        $lookup: {
+                                            from: "orderstatuses",
+                                            localField: "order.orderStatus",
+                                            foreignField: "_id",
+                                            as: "orderStatus",
+                                        },
+                                    },
+                                    {
+                                        $unwind: {
+                                            path: "$orderStatus",
+                                            preserveNullAndEmptyArrays: false,
+                                        },
+                                    },
+                                    {
+                                        $match: {
+                                            $expr: {
+                                                $eq: [
+                                                    "$orderStatus.code",
+                                                    "DELIVERED",
+                                                ],
+                                            },
+                                        },
+                                    },
+                                ],
+                                as: "orders",
+                            },
+                        },
+                        {
+                            $addFields: {
+                                sumOrder: { $sum: "$orders.quantity" },
+                            },
+                        },
+                        {
+                            $project: {
+                                _id: 1,
+                                price: 1,
+                                size: 1,
+                                stock: 1,
+                                cache: 1,
+                                sumOrder: 1,
+                            },
+                        },
+                        {
+                            $sort: { size: 1 },
+                        },
+                    ],
                     as: "attributes",
                 },
             },
@@ -265,12 +444,21 @@ export const getProductById = async (req, res) => {
                 },
             },
             {
+                $lookup: {
+                    from: "user_review_attributes",
+                    localField: "_id",
+                    foreignField: "product",
+                    as: "reviews",
+                },
+            },
+            {
                 $project: {
                     _id: 1,
                     code: 1,
                     name: 1,
                     description: 1,
                     isActive: 1,
+                    rating: { $avg: "$reviews.rating" },
                     brand: {
                         _id: 1,
                         name: 1,
@@ -287,10 +475,12 @@ export const getProductById = async (req, res) => {
                     },
                     attributes: {
                         _id: 1,
+                        originPrice: 1,
                         price: 1,
                         size: 1,
                         stock: 1,
                         cache: 1,
+                        sumOrder: 1,
                     },
                     likeQuantity: {
                         _id: 1,
@@ -332,8 +522,8 @@ export const createProduct = async (req, res) => {
                     folder: "products",
                     transformation: [
                         {
-                            width: 700,
-                            height: 700,
+                            width: 600,
+                            height: 600,
                             crop: "limit",
                             quality: "auto",
                         },
@@ -363,6 +553,7 @@ export const createProduct = async (req, res) => {
 
         if (Array.isArray(attributes) && attributes.length > 0) {
             const relations = attributes.map((item) => ({
+                originPrice: item.originPrice,
                 price: item.price,
                 size: item.size,
                 stock: item.stock,
@@ -526,17 +717,33 @@ export const updateProduct = async (req, res) => {
                 const attribute = await Attribute.findOne({ _id: item._id });
 
                 if (attribute) {
-                    await Attribute.updateOne(
-                        { _id: item._id },
-                        {
-                            price: item.price,
-                            size: item.size,
-                            stock: item.stock,
-                            cache: item.stock,
-                            product: _id,
-                        },
-                        { session }
-                    );
+                    if (item.stock >= attribute.stock) {
+                        await Attribute.updateOne(
+                            { _id: item._id },
+                            {
+                                price: item.price,
+                                size: item.size,
+                                stock: item.stock,
+                                cache:
+                                    attribute.cache +
+                                    (item.stock - attribute.stock),
+                                product: _id,
+                            },
+                            { session }
+                        );
+                    } else {
+                        await Attribute.updateOne(
+                            { _id: item._id },
+                            {
+                                price: item.price,
+                                size: item.size,
+                                stock: item.stock,
+                                cache: attribute.cache,
+                                product: _id,
+                            },
+                            { session }
+                        );
+                    }
                 } else {
                     await Attribute.create([{ ...item }], {
                         session,
@@ -1118,22 +1325,24 @@ export const toggleLikeProduct = async (req, res) => {
             user: userId,
             product: productId,
         });
+        let productUserLike;
 
         if (!record) {
-            record = new ProductUserLike({
+            productUserLike = await ProductUserLike.create({
                 user: userId,
                 product: productId,
                 liked: true,
             });
         } else {
-            record.liked = liked;
+            await ProductUserLike.deleteOne({
+                user: new mongoose.Types.ObjectId(userId),
+                product: new mongoose.Types.ObjectId(productId),
+            });
         }
-
-        await record.save();
 
         return successResponse(
             res,
-            record.liked
+            productUserLike?.liked
                 ? "Yêu thích sản phẩm thành công!"
                 : "Bỏ yêu thích sản phẩm thành công!"
         );

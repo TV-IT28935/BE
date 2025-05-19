@@ -1,19 +1,18 @@
 import crypto from "crypto";
 import dotenv from "dotenv";
 import moment from "moment";
-import mongoose from "mongoose";
 import Order from "../model/order.js";
+import OrderStatus from "../model/orderStatus.js";
 import {
     errorResponse400,
     errorResponse500,
     successResponse,
 } from "../utils/responseHandler.js";
-import OrderStatus from "../model/orderStatus.js";
 import validateMongoDbId from "../utils/validateMongodbId.js";
 dotenv.config();
 
 export const generatePaymentUrl = async (req, res) => {
-    process.env.TZ = "Asia/Ha_Noi";
+    process.env.TZ = "Asia/Ho_Chi_Minh";
 
     const { orderId } = req.body;
 
@@ -69,7 +68,7 @@ export const generatePaymentUrl = async (req, res) => {
 
     const paymentUrl = `${vnpUrl}?${urlParams.toString()}`;
 
-    res.redirect(paymentUrl);
+    return successResponse(res, "", paymentUrl);
 };
 
 function sortParams(obj) {

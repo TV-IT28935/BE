@@ -9,6 +9,7 @@ import {
 import validateMongoDbId from "../utils/validateMongodbId.js";
 import { ErrorCustom } from "../helper/ErrorCustom.js";
 import UserReviewAttribute from "../model/user_review_attribute.js";
+import mongoose from "mongoose";
 
 export const getAttribute = async (req, res) => {
     try {
@@ -86,21 +87,83 @@ export const getAllReviewAttributeByProductId = async (req, res) => {
         size = parseInt(size);
 
         const [reviews, total] = await Promise.all([
-            await UserReviewAttribute.find({ product: productId })
-                .populate({
-                    path: "user",
-                    select: "_id username avatar",
-                })
-                .populate({
-                    path: "attribute",
-                    select: "_id size",
-                })
-                .populate({
-                    path: "product",
-                    select: "_id name",
-                })
-                .skip(page * size)
-                .limit(size),
+            await UserReviewAttribute.aggregate([
+                {
+                    $match: {
+                        product: new mongoose.Types.ObjectId(productId),
+                    },
+                },
+
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "user",
+                        foreignField: "_id",
+                        as: "user",
+                    },
+                },
+                { $unwind: "$user" },
+                {
+                    $lookup: {
+                        from: "userdetails",
+                        localField: "user._id",
+                        foreignField: "userId",
+                        as: "userDetail",
+                    },
+                },
+                {
+                    $unwind: {
+                        path: "$userDetail",
+                        preserveNullAndEmptyArrays: true,
+                    },
+                },
+
+                {
+                    $lookup: {
+                        from: "attributes",
+                        localField: "attribute",
+                        foreignField: "_id",
+                        as: "attribute",
+                    },
+                },
+                { $unwind: "$attribute" },
+
+                {
+                    $lookup: {
+                        from: "products",
+                        localField: "product",
+                        foreignField: "_id",
+                        as: "product",
+                    },
+                },
+                { $unwind: "$product" },
+
+                {
+                    $project: {
+                        _id: 1,
+                        comment: 1,
+                        rating: 1,
+                        description: 1,
+                        createdAt: 1,
+                        user: {
+                            _id: "$user._id",
+                            username: "$user.username",
+                            avatar: "$userDetail.avatar",
+                        },
+                        attribute: {
+                            _id: 1,
+                            size: 1,
+                        },
+                        product: {
+                            _id: 1,
+                            name: 1,
+                        },
+                    },
+                },
+
+                { $skip: page * size },
+                { $limit: size },
+            ]),
 
             await UserReviewAttribute.countDocuments({ product: productId }),
         ]);

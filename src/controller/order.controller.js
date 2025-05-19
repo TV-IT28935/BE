@@ -365,6 +365,7 @@ const cancelOrder = async (req, res) => {
                 orderStatus: orderStatus._id,
                 shipDate,
                 shipment,
+                isPending: null,
                 updateAt: new Date(),
                 reason: description,
             },
@@ -399,12 +400,54 @@ const countOrder = async (req, res) => {
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
-const reportAmountYear = async (req, res) => {};
+const reportAmountYear = async (req, res) => {
+    try {
+        const result = await Order.aggregate([
+            {
+                $match: {
+                    isPayment: true,
+                },
+            },
+            {
+                $addFields: {
+                    year: {
+                        $year: {
+                            date: "$createdAt",
+                            timezone: "Asia/Ho_Chi_Minh",
+                        },
+                    },
+                },
+            },
+            {
+                $group: {
+                    _id: "$year",
+                    totalAmount: { $sum: "$total" },
+                },
+            },
+            {
+                $project: {
+                    _id: 0,
+                    year: "$_id",
+                    totalAmount: 1,
+                },
+            },
+            {
+                $sort: { year: 1 },
+            },
+        ]);
+
+        return successResponse(res, "", result);
+    } catch (error) {
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
+        return errorResponse500(res, "Lỗi server", error.message);
+    }
+};
 const reportByProduct = async (req, res) => {
     try {
         const { page, size, sort } = req.query;
         const result = await OrderDetail.aggregate([
-            // Join sang bảng attributes để lấy thông tin productId
             {
                 $lookup: {
                     from: "attributes",
@@ -415,14 +458,12 @@ const reportByProduct = async (req, res) => {
             },
             { $unwind: "$attributeInfo" },
 
-            // Thêm productId từ attribute
             {
                 $addFields: {
                     productId: "$attributeInfo.product",
                 },
             },
 
-            // Join sang orders để lọc theo trạng thái thanh toán
             {
                 $lookup: {
                     from: "orders",
@@ -433,21 +474,18 @@ const reportByProduct = async (req, res) => {
             },
             { $unwind: "$orderInfo" },
 
-            // Chỉ lấy các order đã thanh toán
             {
                 $match: {
-                    "orderInfo.isPayment": true, // hoặc "orderInfo.status": "paid" nếu bạn dùng status text
+                    "orderInfo.isPayment": true,
                 },
             },
 
-            // Tính lineTotal
             {
                 $addFields: {
                     lineTotal: { $multiply: ["$quantity", "$sellPrice"] },
                 },
             },
 
-            // Gộp theo productId
             {
                 $group: {
                     _id: "$productId",
@@ -458,7 +496,6 @@ const reportByProduct = async (req, res) => {
                 },
             },
 
-            // Join lấy thêm thông tin product
             {
                 $lookup: {
                     from: "products",
@@ -474,7 +511,6 @@ const reportByProduct = async (req, res) => {
                 },
             },
 
-            // Sort theo doanh thu và lấy top 10
             { $sort: { [sort]: -1 } },
             { $skip: +page * +size },
             { $limit: +size },
