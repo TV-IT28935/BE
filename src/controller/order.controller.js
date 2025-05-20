@@ -387,7 +387,91 @@ const cancelOrder = async (req, res) => {
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
-const countOrderByName = async (req, res) => {};
+const countOrderByName = async (req, res) => {
+    db.orders.aggregate([
+        // B1: Chỉ lấy các đơn đã thanh toán
+        {
+            $match: { isPending: false },
+        },
+
+        // B2: Join orderDetails
+        {
+            $lookup: {
+                from: "orderDetails",
+                localField: "_id",
+                foreignField: "orderId",
+                as: "orderDetails",
+            },
+        },
+        { $unwind: "$orderDetails" },
+
+        // B3: Join attributes
+        {
+            $lookup: {
+                from: "attributes",
+                localField: "orderDetails.attributeId",
+                foreignField: "_id",
+                as: "attribute",
+            },
+        },
+        { $unwind: "$attribute" },
+
+        // B4: Join products
+        {
+            $lookup: {
+                from: "products",
+                localField: "attribute.productId",
+                foreignField: "_id",
+                as: "product",
+            },
+        },
+        { $unwind: "$product" },
+
+        // B5: Join product_categories
+        {
+            $lookup: {
+                from: "product_category",
+                localField: "product._id",
+                foreignField: "productId",
+                as: "productCategory",
+            },
+        },
+        { $unwind: "$productCategory" },
+
+        // B6: Join categories
+        {
+            $lookup: {
+                from: "categories",
+                localField: "productCategory.categoryId",
+                foreignField: "_id",
+                as: "category",
+            },
+        },
+        { $unwind: "$category" },
+
+        // B7: Group theo category để tính tổng quantity và doanh thu
+        {
+            $group: {
+                _id: "$category._id",
+                categoryName: { $first: "$category.name" },
+                totalQuantity: { $sum: "$orderDetails.quantity" },
+                totalRevenue: {
+                    $sum: {
+                        $multiply: [
+                            "$orderDetails.quantity",
+                            "$orderDetails.sellPrice",
+                        ],
+                    },
+                },
+            },
+        },
+
+        // Optional: sắp xếp theo doanh thu
+        {
+            $sort: { totalRevenue: -1 },
+        },
+    ]);
+};
 const countOrder = async (req, res) => {
     try {
         const orders = await Order.find({});
@@ -655,7 +739,66 @@ const getOrderByOrderStatusAndYearAndMonth = async (req, res) => {
     }
 };
 const getOrderByProduct = async (req, res) => {};
-const reportAmountMonth = async (req, res) => {};
+const reportAmountMonth = async (req, res) => {
+    db.orders.aggregate([
+        // B1: Lọc đơn đã thanh toán
+        {
+            $match: {
+                isPending: false,
+                updatedAt: { $type: "date" }, // Đảm bảo là date
+            },
+        },
+
+        // B2: Join orderDetails
+        {
+            $lookup: {
+                from: "orderDetails",
+                localField: "_id",
+                foreignField: "orderId",
+                as: "orderDetails",
+            },
+        },
+        { $unwind: "$orderDetails" },
+
+        // B3: Tính tháng từ updatedAt
+        {
+            $addFields: {
+                month: { $month: "$updatedAt" }, // Lấy tháng (1 → 12)
+            },
+        },
+
+        // B4: Group theo tháng để tính tổng revenue
+        {
+            $group: {
+                _id: "$month",
+                totalRevenue: {
+                    $sum: {
+                        $multiply: [
+                            "$orderDetails.quantity",
+                            "$orderDetails.sellPrice",
+                        ],
+                    },
+                },
+                totalQuantity: { $sum: "$orderDetails.quantity" },
+            },
+        },
+
+        // B5: Đổi tên _id thành month
+        {
+            $project: {
+                month: "$_id",
+                _id: 0,
+                totalRevenue: 1,
+                totalQuantity: 1,
+            },
+        },
+
+        // B6: Sắp xếp theo tháng tăng dần
+        {
+            $sort: { month: 1 },
+        },
+    ]);
+};
 const updateOrder = async (req, res) => {};
 
 const updateCancel = async (req, res) => {
