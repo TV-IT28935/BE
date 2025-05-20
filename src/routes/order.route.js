@@ -1,5 +1,6 @@
 import express from "express";
 import {
+    amountYear,
     cancelOrder,
     countOrder,
     countOrderByName,
@@ -11,6 +12,7 @@ import {
     getOrderById,
     getOrderByOrderStatusAndYearAndMonth,
     getOrderByOrderStatusBetweenDate,
+    getOrderByOrderYearAndMonth,
     getOrderByProduct,
     getOrderDetailByOrderId,
     reportAmountMonth,
@@ -40,11 +42,18 @@ router.post("/cancel", authMiddleware, cancelOrder);
 router.get("/list/count", authIsAdminMiddleware, countOrderByName);
 router.get("/count", authIsAdminMiddleware, countOrder);
 router.get("/synthesis/year", authIsAdminMiddleware, reportAmountYear);
+router.get("/synthesis/amount-year", authIsAdminMiddleware, amountYear);
+
 router.get("/synthesis/product", authIsAdminMiddleware, reportByProduct);
 router.get(
     "/synthesis/order-by-year-month",
     authIsAdminMiddleware,
     getOrderByOrderStatusAndYearAndMonth
+);
+router.get(
+    "/synthesis/order-year-month",
+    authIsAdminMiddleware,
+    getOrderByOrderYearAndMonth
 );
 router.get(
     "/synthesis/order-by-product",

@@ -417,6 +417,7 @@ export const getProductById = async (req, res) => {
                                 size: 1,
                                 stock: 1,
                                 cache: 1,
+                                originPrice: 1,
                                 sumOrder: 1,
                             },
                         },
@@ -714,6 +715,7 @@ export const updateProduct = async (req, res) => {
 
         if (attributes && attributes.length > 0) {
             for (const item of attributes) {
+                console.log(item, "attributeItem");
                 const attribute = await Attribute.findOne({ _id: item._id });
 
                 if (attribute) {
@@ -721,6 +723,7 @@ export const updateProduct = async (req, res) => {
                         await Attribute.updateOne(
                             { _id: item._id },
                             {
+                                originPrice: item.originPrice,
                                 price: item.price,
                                 size: item.size,
                                 stock: item.stock,
@@ -735,6 +738,7 @@ export const updateProduct = async (req, res) => {
                         await Attribute.updateOne(
                             { _id: item._id },
                             {
+                                originPrice: item.originPrice,
                                 price: item.price,
                                 size: item.size,
                                 stock: item.stock,

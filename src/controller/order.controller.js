@@ -388,95 +388,128 @@ const cancelOrder = async (req, res) => {
     }
 };
 const countOrderByName = async (req, res) => {
-    db.orders.aggregate([
-        // B1: Chỉ lấy các đơn đã thanh toán
-        {
-            $match: { isPending: false },
-        },
-
-        // B2: Join orderDetails
-        {
-            $lookup: {
-                from: "orderDetails",
-                localField: "_id",
-                foreignField: "orderId",
-                as: "orderDetails",
+    try {
+        const result = await Order.aggregate([
+            {
+                $match: { isPayment: true },
             },
-        },
-        { $unwind: "$orderDetails" },
 
-        // B3: Join attributes
-        {
-            $lookup: {
-                from: "attributes",
-                localField: "orderDetails.attributeId",
-                foreignField: "_id",
-                as: "attribute",
+            {
+                $lookup: {
+                    from: "orderdetails",
+                    localField: "_id",
+                    foreignField: "order",
+                    as: "orderDetails",
+                },
             },
-        },
-        { $unwind: "$attribute" },
+            { $unwind: "$orderDetails" },
 
-        // B4: Join products
-        {
-            $lookup: {
-                from: "products",
-                localField: "attribute.productId",
-                foreignField: "_id",
-                as: "product",
+            {
+                $lookup: {
+                    from: "attributes",
+                    localField: "orderDetails.attribute",
+                    foreignField: "_id",
+                    as: "attribute",
+                },
             },
-        },
-        { $unwind: "$product" },
+            { $unwind: "$attribute" },
 
-        // B5: Join product_categories
-        {
-            $lookup: {
-                from: "product_category",
-                localField: "product._id",
-                foreignField: "productId",
-                as: "productCategory",
+            {
+                $lookup: {
+                    from: "products",
+                    localField: "attribute.product",
+                    foreignField: "_id",
+                    as: "product",
+                },
             },
-        },
-        { $unwind: "$productCategory" },
+            { $unwind: "$product" },
 
-        // B6: Join categories
-        {
-            $lookup: {
-                from: "categories",
-                localField: "productCategory.categoryId",
-                foreignField: "_id",
-                as: "category",
+            {
+                $lookup: {
+                    from: "product_categories",
+                    localField: "product._id",
+                    foreignField: "product",
+                    as: "productCategory",
+                },
             },
-        },
-        { $unwind: "$category" },
+            { $unwind: "$productCategory" },
 
-        // B7: Group theo category để tính tổng quantity và doanh thu
-        {
-            $group: {
-                _id: "$category._id",
-                categoryName: { $first: "$category.name" },
-                totalQuantity: { $sum: "$orderDetails.quantity" },
-                totalRevenue: {
-                    $sum: {
-                        $multiply: [
-                            "$orderDetails.quantity",
-                            "$orderDetails.sellPrice",
-                        ],
+            {
+                $lookup: {
+                    from: "categories",
+                    localField: "productCategory.category",
+                    foreignField: "_id",
+                    as: "category",
+                },
+            },
+            { $unwind: "$category" },
+
+            {
+                $group: {
+                    _id: "$category._id",
+                    categoryName: { $first: "$category.name" },
+                    totalQuantity: { $sum: "$orderDetails.quantity" },
+                    totalRevenue: {
+                        $sum: {
+                            $multiply: [
+                                "$orderDetails.quantity",
+                                "$orderDetails.sellPrice",
+                            ],
+                        },
                     },
                 },
             },
-        },
 
-        // Optional: sắp xếp theo doanh thu
-        {
-            $sort: { totalRevenue: -1 },
-        },
-    ]);
+            {
+                $sort: { totalRevenue: -1 },
+            },
+        ]);
+
+        return successResponseList(res, "", result);
+    } catch (error) {
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
+        return errorResponse500(res, "Lỗi server", error.message);
+    }
 };
 const countOrder = async (req, res) => {
     try {
-        const orders = await Order.find({});
+        const orders = await Order.find({}).populate({
+            path: "orderStatus",
+            select: "_id code",
+        });
 
-        return successResponse(res, "", orders.length);
+        console.log(orders, "orders");
+
+        let pendingConfirm = 0;
+        let processing = 0;
+        let shipping = 0;
+        let delivered = 0;
+        let cancelled = 0;
+
+        for (const order of orders) {
+            if (order.orderStatus.code === "PENDING_CONFIRM") {
+                pendingConfirm += 1;
+            } else if (order.orderStatus.code === "PROCESSING") {
+                processing += 1;
+            } else if (order.orderStatus.code === "SHIPPING") {
+                shipping += 1;
+            } else if (order.orderStatus.code === "DELIVERED") {
+                delivered += 1;
+            } else if (order.orderStatus.code === "CANCELLED") {
+                cancelled += 1;
+            }
+        }
+
+        return successResponse(res, "", {
+            total: orders.length,
+            pendingConfirm,
+            processing,
+            shipping,
+            delivered,
+            cancelled,
+        });
     } catch (error) {
         if (error instanceof ErrorCustom) {
             return errorResponse400(res, error.message);
@@ -488,15 +521,27 @@ const reportAmountYear = async (req, res) => {
     try {
         const result = await Order.aggregate([
             {
+                $lookup: {
+                    from: "orderstatuses",
+                    localField: "orderStatus",
+                    foreignField: "_id",
+                    as: "orderStatus",
+                },
+            },
+            {
+                $unwind: "$orderStatus",
+            },
+            {
                 $match: {
-                    isPayment: true,
+                    isPayment: { $ne: null },
+                    "orderStatus.code": { $ne: "CANCELLED" },
                 },
             },
             {
                 $addFields: {
                     year: {
                         $year: {
-                            date: "$createdAt",
+                            date: "$updatedAt",
                             timezone: "Asia/Ho_Chi_Minh",
                         },
                     },
@@ -528,6 +573,98 @@ const reportAmountYear = async (req, res) => {
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
+
+const amountYear = async (req, res) => {
+    try {
+        const result = await Order.aggregate([
+            {
+                $lookup: {
+                    from: "orderstatuses",
+                    localField: "orderStatus",
+                    foreignField: "_id",
+                    as: "orderStatus",
+                },
+            },
+            { $unwind: "$orderStatus" },
+            {
+                $facet: {
+                    isPaymentTrue: [
+                        {
+                            $match: {
+                                isPayment: true,
+                                "orderStatus.code": { $ne: "CANCELLED" },
+                            },
+                        },
+                        {
+                            $addFields: {
+                                year: {
+                                    $year: {
+                                        date: "$updatedAt",
+                                        timezone: "Asia/Ho_Chi_Minh",
+                                    },
+                                },
+                            },
+                        },
+                        {
+                            $group: {
+                                _id: "$year",
+                                totalAmount: { $sum: "$total" },
+                            },
+                        },
+                        {
+                            $project: {
+                                _id: 0,
+                                year: "$_id",
+                                totalAmount: 1,
+                            },
+                        },
+                        { $sort: { year: 1 } },
+                    ],
+                    isPaymentFalseNotDelivered: [
+                        {
+                            $match: {
+                                isPayment: false,
+                                "orderStatus.code": { $ne: "DELIVERED" },
+                            },
+                        },
+                        {
+                            $addFields: {
+                                year: {
+                                    $year: {
+                                        date: "$updatedAt",
+                                        timezone: "Asia/Ho_Chi_Minh",
+                                    },
+                                },
+                            },
+                        },
+                        {
+                            $group: {
+                                _id: "$year",
+                                totalAmount: { $sum: "$total" },
+                            },
+                        },
+                        {
+                            $project: {
+                                _id: 0,
+                                year: "$_id",
+                                totalAmount: 1,
+                            },
+                        },
+                        { $sort: { year: 1 } },
+                    ],
+                },
+            },
+        ]);
+
+        return successResponse(res, "", result[0]);
+    } catch (error) {
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
+        return errorResponse500(res, "Lỗi server", error.message);
+    }
+};
+
 const reportByProduct = async (req, res) => {
     try {
         const { page, size, sort } = req.query;
@@ -624,21 +761,18 @@ const getOrderByOrderStatusAndYearAndMonth = async (req, res) => {
             matchFilter["payment"] = payment;
         }
 
-        if (month && !year) {
-            matchFilter.$expr = { $eq: [{ $month: "$createdAt" }, month] };
+        let dateFilter = [];
+
+        if (month) {
+            dateFilter.push({ $eq: [{ $month: "$updatedAt" }, Number(month)] });
         }
 
-        if (year && !month) {
-            matchFilter.$expr = { $eq: [{ $year: "$createdAt" }, year] };
+        if (year) {
+            dateFilter.push({ $eq: [{ $year: "$updatedAt" }, Number(year)] });
         }
 
-        if (year && month) {
-            matchFilter.$expr = {
-                $and: [
-                    { $eq: [{ $year: "$createdAt" }, year] },
-                    { $eq: [{ $month: "$createdAt" }, month] },
-                ],
-            };
+        if (dateFilter.length > 0) {
+            matchFilter.$expr = { $and: dateFilter };
         }
 
         console.log(matchFilter, "matchFilter");
@@ -738,66 +872,197 @@ const getOrderByOrderStatusAndYearAndMonth = async (req, res) => {
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
+
+const getOrderByOrderYearAndMonth = async (req, res) => {
+    try {
+        const { filter } = aqp(req.query);
+        const { page, size } = filter;
+        const { month, year } = req.query;
+
+        let matchFilter = {
+            isPayment: true,
+        };
+
+        let dateFilter = [];
+
+        if (month) {
+            dateFilter.push({ $eq: [{ $month: "$updatedAt" }, Number(month)] });
+        }
+
+        if (year) {
+            dateFilter.push({ $eq: [{ $year: "$updatedAt" }, Number(year)] });
+        }
+
+        if (dateFilter.length > 0) {
+            matchFilter.$expr = { $and: dateFilter };
+        }
+
+        const result = await Order.aggregate([
+            {
+                $lookup: {
+                    from: "orderstatuses",
+                    localField: "orderStatus",
+                    foreignField: "_id",
+                    as: "orderStatus",
+                },
+            },
+            {
+                $unwind: "$orderStatus",
+            },
+
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "user",
+                    foreignField: "_id",
+                    as: "user",
+                },
+            },
+            {
+                $unwind: "$user",
+            },
+
+            {
+                $match: matchFilter,
+            },
+
+            {
+                $sort: { createdAt: -1 },
+            },
+            {
+                $project: {
+                    _id: 1,
+                    code: 1,
+                    address: 1,
+                    fullName: 1,
+                    phone: 1,
+                    email: 1,
+                    note: 1,
+                    total: 1,
+                    isPayment: 1,
+                    payment: 1,
+                    user: {
+                        _id: 1,
+                        email: 1,
+                        username: 1,
+                    },
+                    orderStatus: {
+                        _id: 1,
+                        name: 1,
+                        code: 1,
+                    },
+                    voucher: 1,
+                    createdAt: 1,
+                },
+            },
+            {
+                $facet: {
+                    data: [
+                        { $sort: { createdAt: -1 } },
+                        { $skip: +page * +size },
+                        { $limit: +size },
+                    ],
+                    total: [{ $count: "count" }],
+                },
+            },
+        ]);
+
+        const orders = result[0]?.data || [];
+        const total = result[0]?.total[0]?.count || 0;
+
+        if (!orders) {
+            return errorResponse400(res, "Không tìm thấy đơn hàng");
+        }
+
+        return successResponseList(
+            res,
+            "Lấy danh sách đơn hàng thành công",
+            orders,
+            {
+                total,
+                page: page,
+                size: size,
+                totalPages: Math.ceil(total / size),
+            }
+        );
+    } catch (error) {
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
+        return errorResponse500(res, "Lỗi server", error.message);
+    }
+};
 const getOrderByProduct = async (req, res) => {};
+
 const reportAmountMonth = async (req, res) => {
-    db.orders.aggregate([
-        // B1: Lọc đơn đã thanh toán
-        {
-            $match: {
-                isPending: false,
-                updatedAt: { $type: "date" }, // Đảm bảo là date
-            },
-        },
-
-        // B2: Join orderDetails
-        {
-            $lookup: {
-                from: "orderDetails",
-                localField: "_id",
-                foreignField: "orderId",
-                as: "orderDetails",
-            },
-        },
-        { $unwind: "$orderDetails" },
-
-        // B3: Tính tháng từ updatedAt
-        {
-            $addFields: {
-                month: { $month: "$updatedAt" }, // Lấy tháng (1 → 12)
-            },
-        },
-
-        // B4: Group theo tháng để tính tổng revenue
-        {
-            $group: {
-                _id: "$month",
-                totalRevenue: {
-                    $sum: {
-                        $multiply: [
-                            "$orderDetails.quantity",
-                            "$orderDetails.sellPrice",
-                        ],
+    const { year } = req.query;
+    const startDate = new Date(`${year}-01-01`);
+    const endDate = new Date(`${+year + 1}-01-01`);
+    try {
+        const result = await Order.aggregate([
+            {
+                $match: {
+                    isPayment: true,
+                    updatedAt: {
+                        $gte: startDate,
+                        $lt: endDate,
+                        $type: "date",
                     },
                 },
-                totalQuantity: { $sum: "$orderDetails.quantity" },
             },
-        },
 
-        // B5: Đổi tên _id thành month
-        {
-            $project: {
-                month: "$_id",
-                _id: 0,
-                totalRevenue: 1,
-                totalQuantity: 1,
+            {
+                $lookup: {
+                    from: "orderdetails",
+                    localField: "_id",
+                    foreignField: "order",
+                    as: "orderDetails",
+                },
             },
-        },
+            { $unwind: "$orderDetails" },
 
-        // B6: Sắp xếp theo tháng tăng dần
-        {
-            $sort: { month: 1 },
-        },
-    ]);
+            {
+                $addFields: {
+                    month: { $month: "$updatedAt" },
+                },
+            },
+
+            {
+                $group: {
+                    _id: "$month",
+                    totalRevenue: {
+                        $sum: {
+                            $multiply: [
+                                "$orderDetails.quantity",
+                                "$orderDetails.sellPrice",
+                            ],
+                        },
+                    },
+                    totalQuantity: { $sum: "$orderDetails.quantity" },
+                },
+            },
+
+            {
+                $project: {
+                    month: "$_id",
+                    _id: 0,
+                    totalRevenue: 1,
+                    totalQuantity: 1,
+                },
+            },
+
+            {
+                $sort: { month: 1 },
+            },
+        ]);
+
+        return successResponseList(res, "", result);
+    } catch (error) {
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
+        return errorResponse500(res, "Lỗi server", error.message);
+    }
 };
 const updateOrder = async (req, res) => {};
 
@@ -1183,11 +1448,13 @@ export {
     getAllOrderStatus,
     getOrderById,
     getOrderByOrderStatusAndYearAndMonth,
+    getOrderByOrderYearAndMonth,
     getOrderByOrderStatusBetweenDate,
     getOrderByProduct,
     getOrderDetailByOrderId,
     reportAmountMonth,
     reportAmountYear,
+    amountYear,
     reportByProduct,
     updateCancel,
     updateOrder,
