@@ -897,6 +897,28 @@ export const getAllProductByBrand = async (req, res) => {
                 },
             },
             {
+                $lookup: {
+                    from: "attributes",
+                    localField: "_id",
+                    foreignField: "product",
+                    as: "attributes",
+                },
+            },
+            {
+                $addFields: {
+                    totalStock: {
+                        $sum: "$attributes.stock",
+                    },
+                },
+            },
+            {
+                $addFields: {
+                    totalCache: {
+                        $sum: "$attributes.cache",
+                    },
+                },
+            },
+            {
                 $project: {
                     _id: 1,
                     name: 1,
@@ -923,6 +945,8 @@ export const getAllProductByBrand = async (req, res) => {
                         _id: 1,
                         url: 1,
                     },
+                    totalStock: 1,
+                    totalCache: 1,
                 },
             },
 

@@ -155,7 +155,6 @@ const getOrderDetailByOrderId = async (req, res) => {
                     order: new mongoose.Types.ObjectId(orderId),
                 },
             },
-            // Join attribute
             {
                 $lookup: {
                     from: "attributes",
@@ -166,7 +165,6 @@ const getOrderDetailByOrderId = async (req, res) => {
             },
             { $unwind: "$attribute" },
 
-            // Join product from attribute
             {
                 $lookup: {
                     from: "products",
@@ -177,7 +175,6 @@ const getOrderDetailByOrderId = async (req, res) => {
             },
             { $unwind: "$product" },
 
-            // Join images from product
             {
                 $lookup: {
                     from: "images",
@@ -186,8 +183,6 @@ const getOrderDetailByOrderId = async (req, res) => {
                     as: "imageUrls",
                 },
             },
-
-            // Join order
             {
                 $lookup: {
                     from: "orders",
@@ -198,7 +193,6 @@ const getOrderDetailByOrderId = async (req, res) => {
             },
             { $unwind: "$order" },
 
-            // Optional: Chỉ lấy các trường cần thiết
             {
                 $project: {
                     _id: 1,
@@ -1001,7 +995,100 @@ const getOrderByOrderYearAndMonth = async (req, res) => {
     }
 };
 
-const getOrderByProduct = async (req, res) => {};
+const getOrderByProduct = async (req, res) => {
+    try {
+        const { page, size, id } = req.query;
+        const result = await Order.aggregate([
+            {
+                $lookup: {
+                    from: "orderstatuses",
+                    localField: "orderStatus",
+                    foreignField: "_id",
+                    as: "orderStatus",
+                },
+            },
+            {
+                $unwind: "$orderStatus",
+            },
+            {
+                $lookup: {
+                    from: "orderdetails",
+                    localField: "_id",
+                    foreignField: "order",
+                    as: "orderDetail",
+                },
+            },
+            {
+                $unwind: "$orderDetail",
+            },
+            {
+                $lookup: {
+                    from: "attributes",
+                    localField: "orderDetail.attribute",
+                    foreignField: "_id",
+                    as: "attribute",
+                },
+            },
+            {
+                $unwind: "$attribute",
+            },
+            {
+                $lookup: {
+                    from: "products",
+                    localField: "attribute.product",
+                    foreignField: "_id",
+                    as: "product",
+                },
+            },
+            {
+                $unwind: "$product",
+            },
+            {
+                $match: {
+                    "product._id": new mongoose.Types.ObjectId(id),
+                },
+            },
+            {
+                $group: {
+                    _id: "$_id",
+                    code: { $first: "$code" },
+                    fullName: { $first: "$fullName" },
+                    phone: { $first: "$phone" },
+                    address: { $first: "$address" },
+                    orderStatus: { $first: "$orderStatus.code" },
+                    createdAt: { $first: "$createdAt" },
+                    total: { $first: "$total" },
+                },
+            },
+            {
+                $sort: {
+                    createdAt: -1,
+                },
+            },
+            {
+                $facet: {
+                    totalPages: [{ $count: "total" }],
+                    data: [{ $skip: +page * +size }, { $limit: +size }],
+                },
+            },
+        ]);
+
+        const orders = result[0].data;
+        const total = result[0].totalPages[0]?.total || 0;
+
+        return successResponseList(res, "", orders, {
+            total,
+            page: +page,
+            size: +size,
+            totalPages: Math.ceil(total / size),
+        });
+    } catch (error) {
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
+        return errorResponse500(res, "Lỗi server", error.message);
+    }
+};
 
 const reportAmountMonth = async (req, res) => {
     const { year } = req.query;
