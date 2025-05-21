@@ -144,6 +144,7 @@ const getOrderById = async (req, res) => {
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
+
 const getOrderDetailByOrderId = async (req, res) => {
     try {
         const { orderId } = req.query;
@@ -243,6 +244,7 @@ const getOrderDetailByOrderId = async (req, res) => {
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
+
 const getAllOrderStatus = async (req, res) => {
     try {
         const orderStatus = await OrderStatus.find({
@@ -311,6 +313,7 @@ const getAllOrder = async (req, res) => {
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
+
 const cancelOrder = async (req, res) => {
     try {
         const session = await mongoose.startSession();
@@ -387,6 +390,7 @@ const cancelOrder = async (req, res) => {
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
+
 const countOrderByName = async (req, res) => {
     try {
         const result = await Order.aggregate([
@@ -465,6 +469,8 @@ const countOrderByName = async (req, res) => {
             },
         ]);
 
+        console.log(result, "result");
+
         return successResponseList(res, "", result);
     } catch (error) {
         if (error instanceof ErrorCustom) {
@@ -473,6 +479,7 @@ const countOrderByName = async (req, res) => {
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
+
 const countOrder = async (req, res) => {
     try {
         const orders = await Order.find({}).populate({
@@ -517,6 +524,7 @@ const countOrder = async (req, res) => {
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
+
 const reportAmountYear = async (req, res) => {
     try {
         const result = await Order.aggregate([
@@ -992,6 +1000,7 @@ const getOrderByOrderYearAndMonth = async (req, res) => {
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
+
 const getOrderByProduct = async (req, res) => {};
 
 const reportAmountMonth = async (req, res) => {
@@ -1188,6 +1197,7 @@ const updateProcess = async (req, res) => {
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
+
 const updateShip = async (req, res) => {
     try {
         const { id, status, shipDate, shipment } = req.body;
@@ -1234,6 +1244,7 @@ const updateShip = async (req, res) => {
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
+
 const updateSuccess = async (req, res) => {
     try {
         const { id, status } = req.body;
@@ -1281,6 +1292,7 @@ const updateSuccess = async (req, res) => {
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
+
 const getAllOrderAndPagination = async (req, res) => {
     try {
         const { filter } = aqp(req.query);
@@ -1434,6 +1446,7 @@ const getAllOrderAndPagination = async (req, res) => {
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
+
 const getOrderByOrderStatusBetweenDate = async (req, res) => {};
 const getAllOrdersByPayment = async (req, res) => {};
 

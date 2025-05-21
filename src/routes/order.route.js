@@ -39,7 +39,9 @@ router.get("/list", authMiddleware, getAllOrder);
 router.post("/cancel", authMiddleware, cancelOrder);
 
 // admin
-router.get("/list/count", authIsAdminMiddleware, countOrderByName);
+// router.get("/list/count", authIsAdminMiddleware, countOrderByName);
+router.get("/list/count", countOrderByName);
+
 router.get("/count", authIsAdminMiddleware, countOrder);
 router.get("/synthesis/year", authIsAdminMiddleware, reportAmountYear);
 router.get("/synthesis/amount-year", authIsAdminMiddleware, amountYear);
