@@ -9,11 +9,16 @@ import CartItem from "../model/cartItem.js";
 import Attribute from "../model/attribute.js";
 import validateMongoDbId from "../utils/validateMongodbId.js";
 import mongoose from "mongoose";
+import {
+    isEnoughCartItemService,
+    modifyCartItemFromNotUserFromDetailService,
+} from "../service/cart.service.js";
 
 const modifyCartItem = async (req, res) => {
     try {
         const { attributeId, quantity, lastPrice } = req.body;
         const user = req.user;
+
         validateMongoDbId(attributeId);
 
         const cartAttribute = await CartItem.findOne({
@@ -34,12 +39,26 @@ const modifyCartItem = async (req, res) => {
             });
             return successResponse(res, "Đã thêm vào giỏ hàng");
         } else {
-            await CartItem.findByIdAndUpdate(cartAttribute._id, {
-                $set: {
-                    quantity,
-                    updatedAt: new Date(),
-                },
+            const attribute = await Attribute.findOne({
+                _id: attributeId,
             });
+
+            if (attribute.stock >= quantity) {
+                await CartItem.findByIdAndUpdate(cartAttribute._id, {
+                    $set: {
+                        quantity,
+                        updatedAt: new Date(),
+                    },
+                });
+            } else {
+                await CartItem.findByIdAndUpdate(cartAttribute._id, {
+                    $set: {
+                        quantity: attribute.stock,
+                        updatedAt: new Date(),
+                    },
+                });
+                return errorResponse400(res, "Vượt quá số lượng!");
+            }
 
             return successResponse(res, "Cập nhật số lượng thành công");
         }
@@ -91,40 +110,39 @@ const modifyCartItemFromDetail = async (req, res) => {
     }
 };
 
-const isEnoughCartItem = async (req, res) => {
+const modifyCartItemFromNotUserFromDetail = async (req, res) => {
     try {
-        const { filter } = aqp(req.query);
         const user = req.user;
-        const { id, quantity } = filter;
-        const cartAttribute = await CartItem.findOne({
-            userId: user._id,
-            attributeId: new mongoose.Types.ObjectId(id),
-            isActive: true,
-        });
+        const cartsNotUser = req.body;
 
-        console.log(cartAttribute, "cartAttribute");
-
-        if (!cartAttribute) {
-            return successResponse(res);
-        } else {
-            const attribute = await Attribute.findOne({
-                _id: new mongoose.Types.ObjectId(id),
-            });
-
-            console.log(attribute, "attribute");
-            if (cartAttribute.quantity + quantity > attribute.stock) {
-                return errorResponse400(
-                    res,
-                    `Giỏ hàng đã có ${cartAttribute.quantity} sản phẩm`
-                );
-            } else {
-                return successResponse(res);
-            }
-        }
+        const result = await modifyCartItemFromNotUserFromDetailService(
+            user,
+            cartsNotUser
+        );
+        return successResponse(res, result.message, result.data);
     } catch (error) {
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
+
+const isEnoughCartItem = async (req, res) => {
+    try {
+        const { filter } = aqp(req.query);
+        const { id, quantity } = filter;
+        const user = req.user;
+
+        const result = await isEnoughCartItemService(user, { id, quantity });
+
+        if (!result.success) {
+            return errorResponse400(res, result.message);
+        }
+
+        return successResponse(res, result.message, result.data);
+    } catch (error) {
+        return errorResponse500(res, "Lỗi server", error.message);
+    }
+};
+
 const getCartItemByAccountId = async (req, res) => {
     try {
         const { filter } = aqp(req.query);
@@ -211,6 +229,7 @@ const getCartItemByAccountId = async (req, res) => {
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
+
 const removeCartItem = async (req, res) => {
     try {
         const { attributeId, cartId, accountId, quantity } = req.body;
@@ -221,10 +240,12 @@ const removeCartItem = async (req, res) => {
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
+
 export {
     modifyCartItem,
     isEnoughCartItem,
     getCartItemByAccountId,
     removeCartItem,
     modifyCartItemFromDetail,
+    modifyCartItemFromNotUserFromDetail,
 };

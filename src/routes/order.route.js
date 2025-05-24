@@ -3,7 +3,7 @@ import {
     amountYear,
     cancelOrder,
     countOrder,
-    countOrderByName,
+    countOrderByCategoryName,
     createOrder,
     getAllOrder,
     getAllOrderAndPagination,
@@ -19,7 +19,8 @@ import {
     reportAmountYear,
     reportByProduct,
     updateCancel,
-    updateOrder,
+    updateOrderRefund,
+    updateOrderReturn,
     updateProcess,
     updateShip,
     updateSuccess,
@@ -39,8 +40,7 @@ router.get("/list", authMiddleware, getAllOrder);
 router.post("/cancel", authMiddleware, cancelOrder);
 
 // admin
-// router.get("/list/count", authIsAdminMiddleware, countOrderByName);
-router.get("/list/count", countOrderByName);
+router.get("/list/category-count", countOrderByCategoryName);
 
 router.get("/count", authIsAdminMiddleware, countOrder);
 router.get("/synthesis/year", authIsAdminMiddleware, reportAmountYear);
@@ -63,7 +63,10 @@ router.get(
     getOrderByProduct
 );
 router.get("/synthesis/amount-month", authIsAdminMiddleware, reportAmountMonth);
-router.post("/update", authIsAdminMiddleware, updateOrder);
+
+router.post("/update-order-return", authIsAdminMiddleware, updateOrderReturn);
+router.post("/update-order-refund", authIsAdminMiddleware, updateOrderRefund);
+
 router.post("/admin/cancel-order", authIsAdminMiddleware, updateCancel);
 router.post("/admin/update-process", authIsAdminMiddleware, updateProcess);
 router.post("/admin/update-shipment", authIsAdminMiddleware, updateShip);

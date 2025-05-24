@@ -15,6 +15,7 @@ import validateMongoDbId from "../utils/validateMongodbId.js";
 import Attribute from "../model/attribute.js";
 import cloudinary from "../config/cloudinary.js";
 import Image from "../model/image.js";
+import getRecommendationsService from "../service/recomendation.service.js";
 
 export const getAllProduct = async (req, res) => {
     try {
@@ -1163,7 +1164,33 @@ export const searchByKeyword = async (req, res) => {
 
 export const getListHot = async (req, res) => {};
 
-export const getRecommendationById = async (req, res) => {};
+export const getRecommendationById = async (req, res) => {
+    try {
+        const { filter } = aqp(req.query);
+        const {
+            productId = req.params.productId,
+            page = 1,
+            limit = 10,
+        } = filter;
+
+        if (!productId) {
+            return errorResponse400(res, "Product ID is required");
+        }
+
+        const result = await getRecommendationsService(
+            productId,
+            parseInt(page),
+            parseInt(limit)
+        );
+        return successResponse(
+            res,
+            "Recommendations fetched successfully",
+            result
+        );
+    } catch (error) {
+        return errorResponse500(res, "Server error", error.message);
+    }
+};
 
 export const relateProduct = async (req, res) => {
     try {

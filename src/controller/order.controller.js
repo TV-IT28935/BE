@@ -259,35 +259,87 @@ const getAllOrderStatus = async (req, res) => {
 };
 const getAllOrder = async (req, res) => {
     try {
-        const { accountId, orderStatusId, page, size } = req.query;
-        const filter = {
-            user: accountId,
+        const { accountId, statusCode, page, size } = req.query;
+        let matchFilter = {
+            user: new mongoose.Types.ObjectId(accountId),
         };
 
-        if (!!orderStatusId) {
-            filter.orderStatus = orderStatusId;
+        if (statusCode) {
+            const codeArray = Array.isArray(statusCode)
+                ? statusCode
+                : statusCode.split(",");
+
+            matchFilter["orderStatus.code"] = { $in: codeArray };
         }
 
-        const orders = await Order.find(filter)
-            .populate({
-                path: "orderStatus",
-                select: "-isActive",
-            })
-            .populate({
-                path: "shipment",
-                select: "-isActive",
-            })
-            .skip(page * size)
-            .limit(size)
-            .sort({
-                createdAt: -1,
-            });
+        console.log(matchFilter, "matchFiltexxxx");
+
+        const [orders, total] = await Promise.all([
+            Order.aggregate([
+                {
+                    $lookup: {
+                        from: "orderstatuses",
+                        localField: "orderStatus",
+                        foreignField: "_id",
+                        as: "orderStatus",
+                    },
+                },
+                { $unwind: "$orderStatus" },
+
+                {
+                    $lookup: {
+                        from: "shipments",
+                        localField: "shipment",
+                        foreignField: "_id",
+                        as: "shipment",
+                    },
+                },
+                {
+                    $unwind: {
+                        path: "$shipment",
+                        preserveNullAndEmptyArrays: true,
+                    },
+                },
+
+                { $match: matchFilter },
+                {
+                    $project: {
+                        _id: 1,
+                        code: 1,
+                        address: 1,
+                        fullName: 1,
+                        phone: 1,
+                        email: 1,
+                        note: 1,
+                        total: 1,
+                        isPayment: 1,
+                        payment: 1,
+                        shipDate: 1,
+                        createdAt: 1,
+                        orderStatus: {
+                            _id: 1,
+                            name: 1,
+                            code: 1,
+                        },
+                        shipment: {
+                            _id: 1,
+                            name: 1,
+                            code: 1,
+                        },
+                    },
+                },
+
+                { $sort: { createdAt: -1 } },
+                { $skip: +page * +size },
+                { $limit: +size },
+            ]),
+
+            Order.countDocuments(matchFilter),
+        ]);
 
         if (!orders) {
             return errorResponse400(res, "Không tìm thấy đơn hàng");
         }
-
-        const total = await Order.countDocuments(filter);
 
         return successResponseList(
             res,
@@ -295,9 +347,9 @@ const getAllOrder = async (req, res) => {
             orders,
             {
                 total,
-                page: page,
-                size: size,
-                totalPages: Math.ceil(total / size),
+                page: +page,
+                size: +size,
+                totalPages: Math.ceil(total / +size),
             }
         );
     } catch (error) {
@@ -385,7 +437,7 @@ const cancelOrder = async (req, res) => {
     }
 };
 
-const countOrderByName = async (req, res) => {
+const countOrderByCategoryName = async (req, res) => {
     try {
         const result = await Order.aggregate([
             {
@@ -530,15 +582,8 @@ const reportAmountYear = async (req, res) => {
                     as: "orderStatus",
                 },
             },
-            {
-                $unwind: "$orderStatus",
-            },
-            {
-                $match: {
-                    isPayment: { $ne: null },
-                    "orderStatus.code": { $ne: "CANCELLED" },
-                },
-            },
+            { $unwind: "$orderStatus" },
+
             {
                 $addFields: {
                     year: {
@@ -549,22 +594,92 @@ const reportAmountYear = async (req, res) => {
                     },
                 },
             },
+
             {
                 $group: {
                     _id: "$year",
-                    totalAmount: { $sum: "$total" },
+                    realizedRevenue: {
+                        $sum: {
+                            $cond: [
+                                {
+                                    $or: [
+                                        {
+                                            $eq: [
+                                                "$orderStatus.code",
+                                                "DELIVERED",
+                                            ],
+                                        },
+                                        { $eq: ["$isPayment", true] },
+                                    ],
+                                },
+                                "$total",
+                                0,
+                            ],
+                        },
+                    },
+                    unearnedRevenue: {
+                        $sum: {
+                            $cond: [
+                                {
+                                    $and: [
+                                        {
+                                            $in: [
+                                                "$orderStatus.code",
+                                                [
+                                                    "PENDING_CONFIRM",
+                                                    "PROCESSING",
+                                                    "SHIPPING",
+                                                ],
+                                            ],
+                                        },
+                                        { $eq: ["$isPayment", false] },
+                                    ],
+                                },
+                                "$total",
+                                0,
+                            ],
+                        },
+                    },
+                    unsuccessfulRevenue: {
+                        $sum: {
+                            $cond: [
+                                {
+                                    $or: [
+                                        {
+                                            $and: [
+                                                {
+                                                    $eq: [
+                                                        "$orderStatus.code",
+                                                        "CANCELLED",
+                                                    ],
+                                                },
+                                                { $eq: ["$isPayment", false] },
+                                            ],
+                                        },
+                                        {
+                                            $eq: [
+                                                "$orderStatus.code",
+                                                "REFUND",
+                                            ],
+                                        },
+                                    ],
+                                },
+                                "$total",
+                                0,
+                            ],
+                        },
+                    },
                 },
             },
             {
                 $project: {
-                    _id: 0,
                     year: "$_id",
-                    totalAmount: 1,
+                    realizedRevenue: 1,
+                    unearnedRevenue: 1,
+                    unsuccessfulRevenue: 1,
                 },
             },
-            {
-                $sort: { year: 1 },
-            },
+            { $sort: { year: 1 } },
         ]);
 
         return successResponse(res, "", result);
@@ -879,13 +994,19 @@ const getOrderByOrderYearAndMonth = async (req, res) => {
     try {
         const { filter } = aqp(req.query);
         const { page, size } = filter;
-        const { month, year } = req.query;
+        const { month, year, statusCode } = req.query;
 
-        let matchFilter = {
-            isPayment: true,
-        };
+        let matchFilter = {};
 
         let dateFilter = [];
+
+        if (statusCode) {
+            const codeArray = Array.isArray(statusCode)
+                ? statusCode
+                : statusCode.split(",");
+
+            matchFilter["orderStatus.code"] = { $in: codeArray };
+        }
 
         if (month) {
             dateFilter.push({ $eq: [{ $month: "$updatedAt" }, Number(month)] });
@@ -1046,6 +1167,7 @@ const getOrderByProduct = async (req, res) => {
             {
                 $match: {
                     "product._id": new mongoose.Types.ObjectId(id),
+                    isPayment: true,
                 },
             },
             {
@@ -1094,11 +1216,12 @@ const reportAmountMonth = async (req, res) => {
     const { year } = req.query;
     const startDate = new Date(`${year}-01-01`);
     const endDate = new Date(`${+year + 1}-01-01`);
+
+    console.log(startDate, endDate, "xxxxxxxxxxxxx");
     try {
         const result = await Order.aggregate([
             {
                 $match: {
-                    isPayment: true,
                     updatedAt: {
                         $gte: startDate,
                         $lt: endDate,
@@ -1106,7 +1229,6 @@ const reportAmountMonth = async (req, res) => {
                     },
                 },
             },
-
             {
                 $lookup: {
                     from: "orderdetails",
@@ -1118,7 +1240,23 @@ const reportAmountMonth = async (req, res) => {
             { $unwind: "$orderDetails" },
 
             {
+                $lookup: {
+                    from: "orderstatuses",
+                    localField: "orderStatus",
+                    foreignField: "_id",
+                    as: "orderStatus",
+                },
+            },
+            { $unwind: "$orderStatus" },
+
+            {
                 $addFields: {
+                    total: {
+                        $multiply: [
+                            "$orderDetails.quantity",
+                            "$orderDetails.sellPrice",
+                        ],
+                    },
                     month: { $month: "$updatedAt" },
                 },
             },
@@ -1126,27 +1264,88 @@ const reportAmountMonth = async (req, res) => {
             {
                 $group: {
                     _id: "$month",
-                    totalRevenue: {
+                    realizedRevenue: {
                         $sum: {
-                            $multiply: [
-                                "$orderDetails.quantity",
-                                "$orderDetails.sellPrice",
+                            $cond: [
+                                {
+                                    $or: [
+                                        {
+                                            $eq: [
+                                                "$orderStatus.code",
+                                                "DELIVERED",
+                                            ],
+                                        },
+                                        { $eq: ["$isPayment", true] },
+                                    ],
+                                },
+                                "$total",
+                                0,
                             ],
                         },
                     },
-                    totalQuantity: { $sum: "$orderDetails.quantity" },
+                    unearnedRevenue: {
+                        $sum: {
+                            $cond: [
+                                {
+                                    $and: [
+                                        {
+                                            $in: [
+                                                "$orderStatus.code",
+                                                [
+                                                    "PENDING_CONFIRM",
+                                                    "PROCESSING",
+                                                    "SHIPPING",
+                                                ],
+                                            ],
+                                        },
+                                        { $eq: ["$isPayment", false] },
+                                    ],
+                                },
+                                "$total",
+                                0,
+                            ],
+                        },
+                    },
+                    unsuccessfulRevenue: {
+                        $sum: {
+                            $cond: [
+                                {
+                                    $or: [
+                                        {
+                                            $and: [
+                                                {
+                                                    $eq: [
+                                                        "$orderStatus.code",
+                                                        "CANCELLED",
+                                                    ],
+                                                },
+                                                { $eq: ["$isPayment", false] },
+                                            ],
+                                        },
+                                        {
+                                            $eq: [
+                                                "$orderStatus.code",
+                                                "REFUND",
+                                            ],
+                                        },
+                                    ],
+                                },
+                                "$total",
+                                0,
+                            ],
+                        },
+                    },
                 },
             },
 
             {
                 $project: {
                     month: "$_id",
-                    _id: 0,
-                    totalRevenue: 1,
-                    totalQuantity: 1,
+                    realizedRevenue: 1,
+                    unearnedRevenue: 1,
+                    unsuccessfulRevenue: 1,
                 },
             },
-
             {
                 $sort: { month: 1 },
             },
@@ -1160,7 +1359,146 @@ const reportAmountMonth = async (req, res) => {
         return errorResponse500(res, "Lỗi server", error.message);
     }
 };
-const updateOrder = async (req, res) => {};
+const updateOrderReturn = async (req, res) => {
+    const session = await mongoose.startSession();
+    const { orderId, status } = req.body;
+
+    try {
+        session.startTransaction();
+
+        const [orders, orderStatus] = await Promise.all([
+            Order.aggregate([
+                { $match: { _id: new mongoose.Types.ObjectId(orderId) } },
+                {
+                    $lookup: {
+                        from: "orderdetails",
+                        localField: "_id",
+                        foreignField: "order",
+                        as: "orderDetails",
+                    },
+                },
+            ]),
+
+            OrderStatus.findOne({ code: status }),
+        ]);
+
+        const order = orders[0];
+        if (!order) {
+            await session.abortTransaction();
+            session.endSession();
+            return errorResponse400(res, "Đơn hàng không tồn tại!", false);
+        }
+
+        if (!orderStatus) {
+            await session.abortTransaction();
+            session.endSession();
+
+            return errorResponse400(
+                res,
+                "Trạng thái đơn hàng không tồn tại!",
+                false
+            );
+        }
+
+        for (const orderDetail of order.orderDetails) {
+            await Attribute.updateOne(
+                { _id: orderDetail.attribute },
+                {
+                    $set: { $inc: { stock: orderDetail.quantity } },
+                },
+                { session }
+            );
+        }
+
+        await Order.updateOne(
+            { _id: orderId },
+            {
+                orderStatus: orderStatus._id,
+                updateAt: new Date(),
+            },
+            { session }
+        );
+
+        await session.commitTransaction();
+        session.endSession();
+
+        return successResponse(res, "Thành công!", true);
+    } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
+
+        return errorResponse500(res, "Lỗi server", error.message);
+    }
+};
+
+const updateOrderRefund = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+        const { orderId, status } = req.body;
+        const [orders, orderStatus] = await Promise.all([
+            Order.aggregate([
+                { $match: { _id: new mongoose.Types.ObjectId(orderId) } },
+                {
+                    $lookup: {
+                        from: "orderdetails",
+                        localField: "_id",
+                        foreignField: "order",
+                        as: "orderDetails",
+                    },
+                },
+            ]),
+
+            OrderStatus.findOne({ code: status }),
+        ]);
+
+        const order = orders[0];
+        if (!order) {
+            await session.abortTransaction();
+            session.endSession();
+            return errorResponse400(res, "Đơn hàng không tồn tại!", false);
+        }
+
+        if (!orderStatus) {
+            await session.abortTransaction();
+            session.endSession();
+
+            return errorResponse400(
+                res,
+                "Trạng thái đơn hàng không tồn tại!",
+                false
+            );
+        }
+
+        await Order.updateOne(
+            { _id: orderId },
+            {
+                isPayment: null,
+                orderStatus: orderStatus._id,
+                updateAt: new Date(),
+            },
+            { session }
+        );
+
+        await session.commitTransaction();
+        session.endSession();
+
+        return successResponse(res, "Thành công!", true);
+    } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+
+        if (error instanceof ErrorCustom) {
+            return errorResponse400(res, error.message);
+        }
+
+        return errorResponse500(res, "Lỗi server", error.message);
+    }
+};
 
 const updateCancel = async (req, res) => {
     try {
@@ -1540,7 +1878,7 @@ const getAllOrdersByPayment = async (req, res) => {};
 export {
     cancelOrder,
     countOrder,
-    countOrderByName,
+    countOrderByCategoryName,
     createOrder,
     getAllOrder,
     getAllOrderAndPagination,
@@ -1557,8 +1895,9 @@ export {
     amountYear,
     reportByProduct,
     updateCancel,
-    updateOrder,
     updateProcess,
     updateShip,
     updateSuccess,
+    updateOrderReturn,
+    updateOrderRefund,
 };
